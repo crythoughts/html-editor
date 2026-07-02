@@ -8,7 +8,7 @@
 }
 
 :root {
-    --sidebar-width: 360px;
+    --sidebar-width: 45vw;
     --sidebar-collapsed-width: 0px;
     --toolbar-height: 34px;
     --tab-bar-height: 30px;
@@ -89,7 +89,8 @@ body {
     max-width: 1200px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
     border-radius: 4px;
-    padding: 10px;
+    /*padding: 10px;*/
+    padding: 0px;
     position: relative;
 }
 
@@ -1036,6 +1037,57 @@ select.input {
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* ==================== CONTEXT MENU ==================== */
+.context-menu {
+    position: fixed;
+    z-index: 500;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+    min-width: 160px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.ctx-item {
+    display: block;
+    width: 100%;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    text-align: left;
+    border-radius: 4px;
+}
+
+.ctx-item:hover {
+    background: var(--bg-hover);
+}
+
+.ctx-danger:hover {
+    background: rgba(243, 139, 168, 0.15);
+    color: var(--danger);
+}
+
+/* ==================== RESIZE HIGHLIGHT ==================== */
+.resize-highlight {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border: 2px solid #fff;
+    border-radius: 2px;
+    cursor: se-resize;
+    z-index: 101;
+    pointer-events: auto;
+}
+
+.resize-highlight.hidden {
+    display: none;
 }
 
 /* ==================== MISC ==================== */

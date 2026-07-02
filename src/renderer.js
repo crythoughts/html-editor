@@ -185,9 +185,13 @@ ${bodyHtml}
       }
     }
 
-    // Set text content
+    // Set text content (raw HTML if flag set)
     if (tag.textContent) {
-      el.textContent = tag.textContent;
+      if (tag.rawHtml) {
+        el.innerHTML = tag.textContent;
+      } else {
+        el.textContent = tag.textContent;
+      }
     }
 
     // Render children

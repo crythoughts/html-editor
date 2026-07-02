@@ -1,6 +1,3 @@
-/**
- * Main application class for the HTML Visual Editor.
- */
 class App {
   constructor() {
     this.currentProject = null;
@@ -10,11 +7,10 @@ class App {
     this.activeTool = "cursor";
     this.sidebarCollapsed = false;
     this.currentView = "projects";
-    this.currentPageTab = "insert"; // Insert first
+    this.currentPageTab = "insert";
     this.showElementEditor = false;
     this.viewMode = false;
     this.pseudoState = "";
-
     this.els = {};
     this._dirty = false;
     this._hoveredUid = null;
@@ -26,9 +22,18 @@ class App {
     this._isResizing = false;
     this._resizeStart = null;
     this._noHistory = false;
+    this._contextTagUid = null;
+    this.ctxOrigins = {
+      tool: "cursor",
+      view: "projects",
+      proj: null,
+      page: null,
+      pageIdx: -1,
+      sel: null,
+      showElem: false,
+      pageTab: "insert",
+    };
   }
-
-  // ==================== INIT ====================
 
   async init() {
     this.els.sidebar = document.getElementById("sidebar");
@@ -37,6 +42,7 @@ class App {
     this.els.editorContent = document.getElementById("editor-content");
     this.els.hoverHighlight = document.getElementById("hover-highlight");
     this.els.selectedHighlight = document.getElementById("selected-highlight");
+    this.els.resizeHighlight = document.getElementById("resize-highlight");
     this.els.editorArea = document.getElementById("editor-area");
     this.els.editorCanvas = document.getElementById("editor-canvas");
     this.els.statusBar = document.getElementById("status-bar");
@@ -44,18 +50,26 @@ class App {
     this.els.modalContent = document.getElementById("modal-content");
     this.els.fileInput = document.getElementById("file-input");
     this.els.expandBtn = document.getElementById("sidebar-expand");
+    this.els.contextMenu = document.getElementById("context-menu");
 
     this.bindEvents();
     this.setTool("cursor");
     this.restoreFromHash();
-
     if (!this.currentProject) this.showProjectsList();
-
     this.setStatus("Ready");
     return this;
   }
 
   bindEvents() {
+    // History
+    document.getElementById("tool-undo").addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.undo();
+    });
+    document.getElementById("tool-redo").addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.redo();
+    });
     document.getElementById("btn-save").addEventListener("click", (e) => {
       e.stopPropagation();
       this.saveProject();
@@ -81,6 +95,10 @@ class App {
       e.stopPropagation();
       this.setTool("select");
     });
+    document.getElementById("tool-move").addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.setTool("move");
+    });
     document.getElementById("tool-clear").addEventListener("click", (e) => {
       e.stopPropagation();
       this.clearSelection();
@@ -91,46 +109,40 @@ class App {
     });
     document.getElementById("tool-copyhtml").addEventListener("click", (e) => {
       e.stopPropagation();
-      this.copyHtml();
+      this.showCopyHtmlModal();
+    });
+    document.getElementById("tool-export").addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.exportProject();
     });
 
     this.els.fileInput.addEventListener("change", (e) =>
       this.handleFileImport(e),
     );
     this.els.editorArea.addEventListener("mousemove", (e) =>
-      this.handleEditorHover(e),
+      this.onEditorMouseMove(e),
     );
-    this.els.editorArea.addEventListener("click", (e) =>
-      this.handleEditorClick(e),
+    this.els.editorArea.addEventListener("mousedown", (e) =>
+      this.onEditorMouseDown(e),
     );
-    this.els.editorArea.addEventListener("mouseleave", () =>
-      this.clearHoverHighlight(),
+    this.els.editorArea.addEventListener("mouseup", (e) =>
+      this.onEditorMouseUp(e),
     );
+    this.els.editorArea.addEventListener("mouseleave", () => {
+      this.clearHoverHighlight();
+      this._isResizing = false;
+    });
     this.els.editorArea.addEventListener("scroll", () =>
       this.highlightSelectedElement(),
     );
-
-    // Resize handle
-    const resizeHandle = document.getElementById("resize-handle");
-    let isResizing = false;
-    resizeHandle.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      isResizing = true;
-      const startX = e.clientX;
-      const startWidth = this.els.editorContent.offsetWidth;
-      const onMove = (ev) => {
-        if (!isResizing) return;
-        const newWidth = Math.max(200, startWidth + (ev.clientX - startX));
-        this.els.editorContent.style.width = newWidth + "px";
-        this.els.editorContent.style.maxWidth = "none";
-      };
-      const onUp = () => {
-        isResizing = false;
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-      };
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
+    this.els.editorArea.addEventListener("contextmenu", (e) =>
+      this.onContextMenu(e),
+    );
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#context-menu")) this.hideContextMenu();
+    });
+    this.els.editorArea.addEventListener("dragstart", (e) => {
+      if (this.activeTool === "move") e.preventDefault();
     });
 
     this.els.modalOverlay.addEventListener("click", (e) => {
@@ -147,104 +159,70 @@ class App {
       if (e.key === "Escape") {
         this.clearSelection();
         this.closeModal();
+        this.hideContextMenu();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         this.saveProject();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        this.undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        this.redo();
+      }
       if (e.key === "Delete" && this.selectedTagUid)
         this._deleteSelectedElement();
     });
-
     window.addEventListener("popstate", () => this.restoreFromHash());
   }
 
-  // ==================== VIEW MODE ====================
-
-  toggleViewMode() {
-    this.viewMode = !this.viewMode;
-    this.els.editorCanvas.classList.toggle("view-mode", this.viewMode);
-    this.els.editorContent.classList.toggle("view-mode", this.viewMode);
-    document
-      .getElementById("tool-viewmode")
-      .classList.toggle("active", this.viewMode);
+  // ==================== HISTORY ====================
+  _saveSnapshot() {
+    if (this._noHistory || !this.currentProject) return;
+    const snap = JSON.stringify(this.currentProject.toJSON());
+    if (this._historyIndex < this._history.length - 1)
+      this._history = this._history.slice(0, this._historyIndex + 1);
+    this._history.push(snap);
+    if (this._history.length > this._maxHistory) this._history.shift();
+    this._historyIndex = this._history.length - 1;
   }
 
-  // ==================== COPY HTML ====================
-
-  copyHtml() {
-    if (!this.currentPage) {
-      this.setStatus("No page to copy");
-      return;
-    }
-    const html = HtmlRenderer.renderPage(this.currentPage);
-    navigator.clipboard
-      .writeText(html)
-      .then(() => {
-        this.setStatus("HTML copied to clipboard");
-      })
-      .catch(() => {
-        // Fallback
-        const ta = document.createElement("textarea");
-        ta.value = html;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-        this.setStatus("HTML copied to clipboard");
-      });
-  }
-
-  // ==================== HASH ROUTING ====================
-
-  saveToHash() {
+  _restoreSnapshot(snap) {
+    if (!snap) return;
+    const data = JSON.parse(snap);
+    const proj = Project.fromJSON(data);
+    this._noHistory = true;
+    this.currentProject = proj;
     if (
-      this.currentProject &&
-      this.currentView === "page" &&
-      this.currentPageIndex >= 0
+      this.currentPage &&
+      this.currentPageIndex >= 0 &&
+      this.currentPageIndex < proj.pages.length
     ) {
-      window.location.hash = `#project=${this.currentProject._id}&page=${this.currentPageIndex}`;
-    } else if (this.currentProject) {
-      window.location.hash = `#project=${this.currentProject._id}`;
+      this.currentPage = proj.pages[this.currentPageIndex];
     } else {
-      window.location.hash = "";
+      this.currentPageIndex = 0;
+      this.currentPage = proj.pages[0] || null;
     }
-  }
-
-  restoreFromHash() {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return;
-    const params = new URLSearchParams(hash);
-    const projectId = params.get("project");
-    const pageIndex = params.get("page");
-    if (!projectId) return;
-    const project = ProjectStorage.load(projectId);
-    if (!project) return;
-    this.currentProject = project;
-    this.currentPageIndex =
-      pageIndex !== null
-        ? parseInt(pageIndex, 10)
-        : project.pages.length > 0
-          ? 0
-          : -1;
-    this.currentPage =
-      this.currentPageIndex >= 0 && this.currentPageIndex < project.pages.length
-        ? project.pages[this.currentPageIndex]
-        : null;
-    if (this.currentPage) {
-      this.currentView = "page";
-      this.currentPageTab = "insert";
-    } else {
-      this.currentView = "project";
-      this.currentPageTab = "meta";
-    }
-    this.selectedTagUid = null;
-    this.showElementEditor = false;
-    this.clearDirty();
+    this._noHistory = false;
+    this.markDirty();
     this.refreshUI();
+    this.renderPreview();
   }
 
-  // ==================== STATE ====================
+  undo() {
+    if (this._historyIndex <= 0) return;
+    this._historyIndex--;
+    this._restoreSnapshot(this._history[this._historyIndex]);
+  }
+
+  redo() {
+    if (this._historyIndex >= this._history.length - 1) return;
+    this._historyIndex++;
+    this._restoreSnapshot(this._history[this._historyIndex]);
+  }
 
   markDirty() {
     this._dirty = true;
@@ -258,24 +236,26 @@ class App {
   }
 
   // ==================== TOOLS ====================
-
   setTool(tool) {
     this.activeTool = tool;
-    // Only manage cursor/select active state
     document
       .getElementById("tool-cursor")
       .classList.toggle("active", tool === "cursor");
     document
       .getElementById("tool-select")
       .classList.toggle("active", tool === "select");
-    this.els.editorArea.style.cursor =
-      tool === "select" ? "crosshair" : "default";
+    document
+      .getElementById("tool-move")
+      .classList.toggle("active", tool === "move");
+    const cursors = { cursor: "default", select: "crosshair", move: "grab" };
+    this.els.editorArea.style.cursor = cursors[tool] || "default";
   }
 
   clearSelection() {
     this.selectedTagUid = null;
     this.showElementEditor = false;
     this.els.selectedHighlight.style.display = "none";
+    this.els.resizeHighlight.classList.add("hidden");
     this.refreshUI();
   }
 
@@ -283,8 +263,10 @@ class App {
     this._hoveredUid = null;
     this.els.hoverHighlight.style.display = "none";
   }
-
-  // ==================== SIDEBAR ====================
+  hideContextMenu() {
+    this.els.contextMenu.classList.add("hidden");
+    this._contextTagUid = null;
+  }
 
   toggleSidebar() {
     this.sidebarCollapsed = !this.sidebarCollapsed;
@@ -295,41 +277,132 @@ class App {
       : "◀";
   }
 
-  // ==================== PRESETS ====================
+  toggleViewMode() {
+    this.viewMode = !this.viewMode;
+    this.els.editorCanvas.classList.toggle("view-mode", this.viewMode);
+    this.els.editorContent.classList.toggle("view-mode", this.viewMode);
+    document
+      .getElementById("tool-viewmode")
+      .classList.toggle("active", this.viewMode);
+  }
 
-  _loadPresets() {
-    try {
-      return JSON.parse(localStorage.getItem("html_editor_presets") || "[]");
-    } catch {
-      return [];
+  // ==================== COPY / EXPORT ====================
+  showCopyHtmlModal() {
+    if (!this.currentPage) {
+      this.setStatus("No page to copy");
+      return;
     }
-  }
-
-  _savePresets() {
-    localStorage.setItem("html_editor_presets", JSON.stringify(this._presets));
-  }
-
-  _saveAsPreset(tag) {
-    const name = prompt(
-      "Preset name:",
-      `${tag.tagName}${tag.class.length ? "." + tag.class.join(".") : ""}`,
-    );
-    if (!name) return;
-    this._presets.push({
-      name,
-      tagName: tag.tagName,
-      textContent: tag.textContent,
-      attrs: { ...tag.attrs },
-      class: [...tag.class],
-      styles: [...tag.styles],
-      children: tag.children.map((c) => c.toJSON()),
+    const html = HtmlRenderer.renderPage(this.currentPage);
+    this._showModalContent(`
+      <h2>📋 Copy HTML</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin:8px 0">Full HTML of "${this.currentPage.title}"</p>
+      <textarea class="input" id="copy-html-text" style="width:100%;height:250px;font-family:monospace;font-size:11px;resize:vertical" readonly>${html.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary" id="copy-html-btn">📋 Copy to Clipboard</button>
+        <button class="btn" id="copy-close-btn">Close</button>
+      </div>`);
+    document.getElementById("copy-html-btn").addEventListener("click", () => {
+      navigator.clipboard
+        .writeText(html)
+        .then(() => {
+          this.setStatus("HTML copied");
+          this.closeModal();
+        })
+        .catch(() => {
+          const ta = document.getElementById("copy-html-text");
+          ta.select();
+          document.execCommand("copy");
+          this.setStatus("HTML copied");
+          this.closeModal();
+        });
     });
-    this._savePresets();
-    this.setStatus(`Preset "${name}" saved`);
+    document
+      .getElementById("copy-close-btn")
+      .addEventListener("click", () => this.closeModal());
   }
 
-  // ==================== PROJECTS LIST ====================
+  exportProject() {
+    if (!this.currentProject) {
+      this.setStatus("No project to export");
+      return;
+    }
+    ProjectStorage.download(this.currentProject);
+    this.setStatus("Project exported");
+  }
 
+  _copyHtmlNoInline() {
+    if (!this.currentPage) {
+      this.setStatus("No page to copy");
+      return;
+    }
+    // Strip inline styles from body tags, use only classes/page styles
+    const copy = Page.fromJSON(this.currentPage.toJSON());
+    const stripStyles = (tag) => {
+      tag.styles = [];
+      for (const child of tag.children) stripStyles(child);
+    };
+    for (const tag of copy.body) stripStyles(tag);
+    const html = HtmlRenderer.renderPage(copy);
+    navigator.clipboard
+      .writeText(html)
+      .then(() => this.setStatus("HTML (no inline) copied"))
+      .catch(() => {
+        const ta = document.createElement("textarea");
+        ta.value = html;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        this.setStatus("HTML copied");
+      });
+  }
+
+  // ==================== HASH ====================
+  saveToHash() {
+    if (
+      this.currentProject &&
+      this.currentView === "page" &&
+      this.currentPageIndex >= 0
+    )
+      window.location.hash = `#project=${this.currentProject._id}&page=${this.currentPageIndex}`;
+    else if (this.currentProject)
+      window.location.hash = `#project=${this.currentProject._id}`;
+    else window.location.hash = "";
+  }
+
+  restoreFromHash() {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const p = new URLSearchParams(hash);
+    const pid = p.get("project"),
+      pi = p.get("page");
+    if (!pid) return;
+    const proj = ProjectStorage.load(pid);
+    if (!proj) return;
+    this.currentProject = proj;
+    this.currentPageIndex =
+      pi !== null ? parseInt(pi, 10) : proj.pages.length > 0 ? 0 : -1;
+    this.currentPage =
+      this.currentPageIndex >= 0 && this.currentPageIndex < proj.pages.length
+        ? proj.pages[this.currentPageIndex]
+        : null;
+    if (this.currentPage) {
+      this.currentView = "page";
+      this.currentPageTab = "insert";
+    } else {
+      this.currentView = "project";
+      this.currentPageTab = "meta";
+    }
+    this.selectedTagUid = null;
+    this.showElementEditor = false;
+    this.clearDirty();
+    this._history = [];
+    this._historyIndex = -1;
+    this._saveSnapshot();
+    this.refreshUI();
+  }
+
+  // ==================== PROJECTS ====================
   showProjectsList() {
     this.currentView = "projects";
     this.currentProject = null;
@@ -344,92 +417,74 @@ class App {
   renderProjectsList() {
     this.els.sidebarTabs.style.display = "none";
     this.els.sidebarTabs.innerHTML = "";
-    const content = this.els.sidebarContent;
-    content.innerHTML = "";
-    const container = document.createElement("div");
-    container.className = "projects-list";
-
-    const header = document.createElement("h2");
-    header.textContent = window.i18n.t("project.title");
-    container.appendChild(header);
-
-    const actions = document.createElement("div");
-    actions.className = "project-actions-bar";
-    const newBtn = document.createElement("button");
-    newBtn.className = "btn btn-primary";
-    newBtn.textContent = "+ " + window.i18n.t("project.newProjectBtn");
-    newBtn.addEventListener("click", (e) => {
+    const c = this.els.sidebarContent;
+    c.innerHTML = "";
+    const ctr = document.createElement("div");
+    ctr.className = "projects-list";
+    const h = document.createElement("h2");
+    h.textContent = window.i18n.t("project.title");
+    ctr.appendChild(h);
+    const a = document.createElement("div");
+    a.className = "project-actions-bar";
+    const nb = document.createElement("button");
+    nb.className = "btn btn-primary";
+    nb.textContent = "+ " + window.i18n.t("project.newProjectBtn");
+    nb.addEventListener("click", (e) => {
       e.stopPropagation();
       this.showNewProjectModal();
     });
-    actions.appendChild(newBtn);
-    const importBtn = document.createElement("button");
-    importBtn.className = "btn";
-    importBtn.textContent = window.i18n.t("project.loadFile");
-    importBtn.addEventListener("click", (e) => {
+    a.appendChild(nb);
+    const ib = document.createElement("button");
+    ib.className = "btn";
+    ib.textContent = window.i18n.t("project.loadFile");
+    ib.addEventListener("click", (e) => {
       e.stopPropagation();
       this.els.fileInput.click();
     });
-    actions.appendChild(importBtn);
-    container.appendChild(actions);
-
-    const listHeader = document.createElement("h3");
-    listHeader.textContent = window.i18n.t("project.pages");
-    container.appendChild(listHeader);
-
-    const listEl = document.createElement("div");
-    listEl.className = "project-cards";
+    a.appendChild(ib);
+    ctr.appendChild(a);
+    const lh = document.createElement("h3");
+    lh.textContent = window.i18n.t("project.pages");
+    ctr.appendChild(lh);
+    const le = document.createElement("div");
+    le.className = "project-cards";
     const projects = ProjectStorage.listAll();
     if (projects.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
-      empty.textContent = window.i18n.t("project.noProjects");
-      listEl.appendChild(empty);
+      const e = document.createElement("p");
+      e.className = "empty-state";
+      e.textContent = window.i18n.t("project.noProjects");
+      le.appendChild(e);
     } else {
       projects.sort((a, b) => b.editedAt - a.editedAt);
-      for (const projData of projects)
-        listEl.appendChild(this.createProjectCard(projData));
+      for (const pd of projects) le.appendChild(this._createProjectCard(pd));
     }
-    container.appendChild(listEl);
-    content.appendChild(container);
+    ctr.appendChild(le);
+    c.appendChild(ctr);
   }
 
   showNewProjectModal() {
-    const html = `
+    this._showModalContent(`
       <h2>${window.i18n.t("project.newProject")}</h2>
       <div class="form" style="margin-top:12px">
-        <div class="form-group">
-          <label class="form-label">${window.i18n.t("project.name")}</label>
-          <input type="text" class="input" id="modal-project-name" value="My Project">
-        </div>
-        <div class="form-group">
-          <label class="form-label">${window.i18n.t("project.author")}</label>
-          <input type="text" class="input" id="modal-project-author" value="">
-        </div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-          <button class="btn btn-small" id="modal-paste-html">📋 Paste HTML to create page</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-primary" id="modal-create-btn">${window.i18n.t("common.create")}</button>
-          <button class="btn" id="modal-cancel-btn">${window.i18n.t("common.cancel")}</button>
-        </div>
-      </div>`;
-    this.showModal(html);
-
+        <div class="form-group"><label class="form-label">${window.i18n.t("project.name")}</label><input type="text" class="input" id="modal-project-name" value="My Project"></div>
+        <div class="form-group"><label class="form-label">${window.i18n.t("project.author")}</label><input type="text" class="input" id="modal-project-author"></div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><button class="btn btn-small" id="modal-paste-html">📋 Paste HTML to create page</button></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="modal-create-btn">${window.i18n.t("common.create")}</button><button class="btn" id="modal-cancel-btn">${window.i18n.t("common.cancel")}</button></div>
+      </div>`);
     document
       .getElementById("modal-create-btn")
       .addEventListener("click", () => {
-        const name =
+        const n =
           document.getElementById("modal-project-name").value.trim() ||
           window.i18n.t("common.unnamed");
-        const author =
+        const a =
           document.getElementById("modal-project-author").value.trim() ||
           window.i18n.t("common.unknownAuthor");
-        const project = new Project({ name, author });
-        project.addPage(new Page({ title: "Home" }));
-        ProjectStorage.save(project);
+        const p = new Project({ name: n, author: a });
+        p.addPage(new Page({ title: "Home" }));
+        ProjectStorage.save(p);
         this.closeModal();
-        this.openProject(project._id);
+        this.openProject(p._id);
       });
     document
       .getElementById("modal-cancel-btn")
@@ -437,73 +492,47 @@ class App {
     document
       .getElementById("modal-paste-html")
       .addEventListener("click", () => {
-        const name =
+        const n =
           document.getElementById("modal-project-name").value.trim() ||
           "Imported HTML";
-        const author =
+        const a =
           document.getElementById("modal-project-author").value.trim() || "";
         this.closeModal();
-        this.showImportHtmlModal(name, author);
-      });
-    document
-      .getElementById("modal-project-name")
-      .addEventListener("keydown", (e) => {
-        if (e.key === "Enter")
-          document.getElementById("modal-create-btn").click();
+        this._showImportHtmlModal(n, a);
       });
     setTimeout(() => document.getElementById("modal-project-name").focus(), 50);
   }
 
-  showImportHtmlModal(projectName, author) {
-    const html = `
-      <h2>Import HTML</h2>
-      <p style="color:var(--text-muted);font-size:12px;margin:8px 0">Paste HTML below. A new page will be created with the content parsed.</p>
-      <div class="form-group">
-        <label class="form-label">HTML content</label>
-        <textarea class="input" id="modal-html-input" rows="8" style="resize:vertical;font-family:monospace;font-size:11px"></textarea>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-primary" id="modal-import-html-btn">Import</button>
-        <button class="btn" id="modal-cancel-btn2">Cancel</button>
-      </div>`;
-    this.showModal(html);
-
+  _showImportHtmlModal(pn, a) {
+    this._showModalContent(
+      `<h2>Import HTML</h2><p style="color:var(--text-muted);font-size:12px;margin:8px 0">Paste HTML below.</p><div class="form-group"><label class="form-label">HTML</label><textarea class="input" id="modal-html-input" rows="8" style="resize:vertical;font-family:monospace;font-size:11px"></textarea></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="modal-import-html-btn">Import</button><button class="btn" id="modal-cancel-btn2">Cancel</button></div>`,
+    );
     document
       .getElementById("modal-import-html-btn")
       .addEventListener("click", () => {
-        const htmlStr = document
-          .getElementById("modal-html-input")
-          .value.trim();
-        if (!htmlStr) return;
-        const project = new Project({
-          name: projectName || "Imported HTML",
-          author: author || "",
-        });
-        const page = new Page({ title: "Imported Page" });
-
-        // Simple HTML to Tag parser
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlStr, "text/html");
-        const bodyChildren = doc.body.children;
+        const s = document.getElementById("modal-html-input").value.trim();
+        if (!s) return;
+        const pr = new Project({ name: pn, author: a });
+        const pg = new Page({ title: "Imported Page" });
+        const doc = new DOMParser().parseFromString(s, "text/html");
         const tags = [];
-        for (const el of bodyChildren) {
-          const tag = this._domToTag(el);
-          if (tag) tags.push(tag);
+        for (const el of doc.body.children) {
+          const t = this._domToTag(el);
+          if (t) tags.push(t);
         }
         if (tags.length === 0) {
-          // Try wrapping in div
-          const wrapper = document.createElement("div");
-          wrapper.innerHTML = htmlStr;
-          for (const el of wrapper.children) {
-            const tag = this._domToTag(el);
-            if (tag) tags.push(tag);
+          const w = document.createElement("div");
+          w.innerHTML = s;
+          for (const el of w.children) {
+            const t = this._domToTag(el);
+            if (t) tags.push(t);
           }
         }
-        page.body = tags;
-        project.addPage(page);
-        ProjectStorage.save(project);
+        pg.body = tags;
+        pr.addPage(pg);
+        ProjectStorage.save(pr);
         this.closeModal();
-        this.openProject(project._id);
+        this.openProject(pr._id);
       });
     document
       .getElementById("modal-cancel-btn2")
@@ -512,116 +541,104 @@ class App {
 
   _domToTag(el) {
     if (!el || !el.tagName) return null;
-    const tag = new Tag({ tagName: el.tagName.toLowerCase() });
-    if (el.id) tag.id = el.id;
+    const t = new Tag({ tagName: el.tagName.toLowerCase() });
+    if (el.id) t.id = el.id;
     if (el.className && typeof el.className === "string")
-      tag.class = el.className.split(/\s+/).filter(Boolean);
-    // Attributes
-    for (const attr of el.attributes) {
-      if (attr.name === "id" || attr.name === "class" || attr.name === "style")
+      t.class = el.className.split(/\s+/).filter(Boolean);
+    for (const at of el.attributes) {
+      if (at.name === "id" || at.name === "class" || at.name === "style")
         continue;
-      tag.attrs[attr.name] = attr.value;
+      t.attrs[at.name] = at.value;
     }
-    // Style
-    if (el.getAttribute("style")) {
-      tag.styles = el
+    if (el.getAttribute("style"))
+      t.styles = el
         .getAttribute("style")
         .split(";")
         .map((s) => s.trim())
         .filter(Boolean);
+    if (el.childNodes.length === 1 && el.childNodes[0].nodeType === 3)
+      t.textContent = el.textContent;
+    else {
+      for (const ch of el.children) {
+        const ct = this._domToTag(ch);
+        if (ct) t.children.push(ct);
+      }
+      let txt = "";
+      for (const n of el.childNodes) {
+        if (n.nodeType === 3 && n.textContent.trim()) txt += n.textContent;
+      }
+      if (txt && t.children.length === 0) t.textContent = txt;
     }
-    // Text content
-    if (el.childNodes.length === 1 && el.childNodes[0].nodeType === 3) {
-      tag.textContent = el.textContent;
-    } else {
-      for (const child of el.children) {
-        const childTag = this._domToTag(child);
-        if (childTag) tag.children.push(childTag);
-      }
-      // Also handle text nodes
-      let text = "";
-      for (const node of el.childNodes) {
-        if (node.nodeType === 3 && node.textContent.trim())
-          text += node.textContent;
-      }
-      if (text && tag.children.length > 0) {
-        // If we have both text and children, put text in a span
-        // Actually, we'll just set text content if no meaningful children
-      } else if (text) {
-        tag.textContent = text;
-      }
-    }
-    return tag;
+    return t;
   }
 
-  createProjectCard(projData) {
+  _createProjectCard(pd) {
     const card = document.createElement("div");
     card.className = "project-card";
-    const nameEl = document.createElement("div");
-    nameEl.className = "project-card-name";
-    nameEl.textContent = projData.name || window.i18n.t("common.unnamed");
-    card.appendChild(nameEl);
-    const authorEl = document.createElement("div");
-    authorEl.className = "project-card-author";
-    authorEl.textContent =
-      projData.author || window.i18n.t("common.unknownAuthor");
-    card.appendChild(authorEl);
-    const datesEl = document.createElement("div");
-    datesEl.className = "project-card-dates";
-    const created = new Date(projData.createdAt || Date.now());
-    const edited = new Date(projData.editedAt || Date.now());
-    datesEl.textContent = `${window.i18n.t("project.created")}: ${created.toLocaleString()} | ${window.i18n.t("project.edited")}: ${edited.toLocaleString()}`;
-    card.appendChild(datesEl);
-    const actionsEl = document.createElement("div");
-    actionsEl.className = "project-card-actions";
-    const openBtn = document.createElement("button");
-    openBtn.className = "btn btn-primary btn-small";
-    openBtn.textContent = window.i18n.t("common.edit");
-    openBtn.addEventListener("click", (e) => {
+    const ne = document.createElement("div");
+    ne.className = "project-card-name";
+    ne.textContent = pd.name || window.i18n.t("common.unnamed");
+    card.appendChild(ne);
+    const ae = document.createElement("div");
+    ae.className = "project-card-author";
+    ae.textContent = pd.author || window.i18n.t("common.unknownAuthor");
+    card.appendChild(ae);
+    const de = document.createElement("div");
+    de.className = "project-card-dates";
+    de.textContent = `${window.i18n.t("project.created")}: ${new Date(pd.createdAt).toLocaleString()} | ${window.i18n.t("project.edited")}: ${new Date(pd.editedAt).toLocaleString()}`;
+    card.appendChild(de);
+    const ax = document.createElement("div");
+    ax.className = "project-card-actions";
+    const ob = document.createElement("button");
+    ob.className = "btn btn-primary btn-small";
+    ob.textContent = window.i18n.t("common.edit");
+    ob.addEventListener("click", (e) => {
       e.stopPropagation();
-      this.openProject(projData._id);
+      this.openProject(pd._id);
     });
-    actionsEl.appendChild(openBtn);
-    const downloadBtn = document.createElement("button");
-    downloadBtn.className = "btn btn-small";
-    downloadBtn.textContent = window.i18n.t("project.download");
-    downloadBtn.addEventListener("click", (e) => {
+    ax.appendChild(ob);
+    const db = document.createElement("button");
+    db.className = "btn btn-small";
+    db.textContent = window.i18n.t("project.download");
+    db.addEventListener("click", (e) => {
       e.stopPropagation();
-      const p = ProjectStorage.load(projData._id);
+      const p = ProjectStorage.load(pd._id);
       if (p) ProjectStorage.download(p);
     });
-    actionsEl.appendChild(downloadBtn);
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-danger btn-small";
-    deleteBtn.textContent = window.i18n.t("common.delete");
-    deleteBtn.addEventListener("click", (e) => {
+    ax.appendChild(db);
+    const dl = document.createElement("button");
+    dl.className = "btn btn-danger btn-small";
+    dl.textContent = window.i18n.t("common.delete");
+    dl.addEventListener("click", (e) => {
       e.stopPropagation();
       if (confirm(window.i18n.t("project.deleteConfirm"))) {
-        ProjectStorage.delete(projData._id);
+        ProjectStorage.delete(pd._id);
         this.renderProjectsList();
       }
     });
-    actionsEl.appendChild(deleteBtn);
-    card.appendChild(actionsEl);
+    ax.appendChild(dl);
+    card.appendChild(ax);
     return card;
   }
 
   // ==================== OPEN / SAVE ====================
-
   openProject(id) {
-    const project = ProjectStorage.load(id);
-    if (!project) {
+    const p = ProjectStorage.load(id);
+    if (!p) {
       this.setStatus("Error loading project");
       return;
     }
-    this.currentProject = project;
-    this.currentPageIndex = project.pages.length > 0 ? 0 : -1;
-    this.currentPage = project.pages.length > 0 ? project.pages[0] : null;
+    this.currentProject = p;
+    this.currentPageIndex = p.pages.length > 0 ? 0 : -1;
+    this.currentPage = p.pages.length > 0 ? p.pages[0] : null;
     this.selectedTagUid = null;
     this.showElementEditor = false;
     this.currentView = "project";
     this.currentPageTab = "meta";
     this.clearDirty();
+    this._history = [];
+    this._historyIndex = -1;
+    this._saveSnapshot();
     this.saveToHash();
     this.refreshUI();
   }
@@ -632,30 +649,25 @@ class App {
       this.clearDirty();
       this.setStatus(window.i18n.t("project.saveSuccess"));
       this.saveToHash();
-    } else {
-      this.setStatus(window.i18n.t("project.saveError"));
-    }
+    } else this.setStatus(window.i18n.t("project.saveError"));
   }
 
   handleFileImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const project = ProjectStorage.import(event.target.result);
-      if (project) {
-        this.setStatus(`Imported: ${project.name}`);
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = (ev) => {
+      const p = ProjectStorage.import(ev.target.result);
+      if (p) {
+        this.setStatus(`Imported: ${p.name}`);
         this.showProjectsList();
-      } else {
-        this.setStatus("Failed to import project");
-      }
+      } else this.setStatus("Failed to import");
     };
-    reader.readAsText(file);
+    r.readAsText(f);
     e.target.value = "";
   }
 
   // ==================== PROJECT VIEW ====================
-
   showProjectView() {
     if (!this.currentProject) {
       this.showProjectsList();
@@ -676,10 +688,10 @@ class App {
   }
 
   _renderProjectTabs() {
-    const tabs = this.els.sidebarTabs;
-    tabs.style.display = "flex";
-    tabs.innerHTML = "";
-    const mt = this._createTab(
+    const t = this.els.sidebarTabs;
+    t.style.display = "flex";
+    t.innerHTML = "";
+    const mt = this._tab(
       "meta",
       window.i18n.t("page.metadata"),
       this.currentPageTab === "meta",
@@ -688,8 +700,8 @@ class App {
       this.currentPageTab = "meta";
       this.renderProjectView();
     });
-    tabs.appendChild(mt);
-    const pt = this._createTab(
+    t.appendChild(mt);
+    const pt = this._tab(
       "pages",
       window.i18n.t("project.pages"),
       this.currentPageTab === "pages",
@@ -698,60 +710,50 @@ class App {
       this.currentPageTab = "pages";
       this.renderProjectView();
     });
-    tabs.appendChild(pt);
+    t.appendChild(pt);
   }
 
   _renderProjectContent() {
-    const content = this.els.sidebarContent;
-    content.innerHTML = "";
-    if (this.currentPageTab === "meta") this._renderProjectMeta(content);
-    else if (this.currentPageTab === "pages")
-      this._renderProjectPagesList(content);
+    const c = this.els.sidebarContent;
+    c.innerHTML = "";
+    if (this.currentPageTab === "meta") this._renderProjectMeta(c);
+    else if (this.currentPageTab === "pages") this._renderProjectPagesList(c);
   }
 
   _renderProjectMeta(container) {
-    const project = this.currentProject;
-    const form = document.createElement("div");
-    form.className = "form";
-    form.appendChild(
-      this._createFormGroup(
-        window.i18n.t("project.name"),
-        "text",
-        project.name,
-        (v) => {
-          project.name = v;
-          this.markDirty();
-        },
-      ),
+    const p = this.currentProject;
+    const f = document.createElement("div");
+    f.className = "form";
+    f.appendChild(
+      this._fg(window.i18n.t("project.name"), "text", p.name, (v) => {
+        p.name = v;
+        this.markDirty();
+      }),
     );
-    form.appendChild(
-      this._createFormGroup(
-        window.i18n.t("project.author"),
-        "text",
-        project.author,
-        (v) => {
-          project.author = v;
-          this.markDirty();
-        },
-      ),
+    f.appendChild(
+      this._fg(window.i18n.t("project.author"), "text", p.author, (v) => {
+        p.author = v;
+        this.markDirty();
+      }),
     );
-    container.appendChild(form);
+    container.appendChild(f);
   }
 
   _renderProjectPagesList(container) {
-    const project = this.currentProject;
-    const header = document.createElement("div");
-    header.className = "pages-header";
-    const newBtn = document.createElement("button");
-    newBtn.className = "btn btn-primary";
-    newBtn.textContent = "+ " + window.i18n.t("page.newPage");
-    newBtn.addEventListener("click", (e) => {
+    const p = this.currentProject;
+    const h = document.createElement("div");
+    h.className = "pages-header";
+    const nb = document.createElement("button");
+    nb.className = "btn btn-primary";
+    nb.textContent = "+ " + window.i18n.t("page.newPage");
+    nb.addEventListener("click", (e) => {
       e.stopPropagation();
-      const page = new Page({ title: `Page ${project.pages.length + 1}` });
-      project.addPage(page);
-      ProjectStorage.save(project);
-      this.currentPageIndex = project.pages.length - 1;
-      this.currentPage = page;
+      this._saveSnapshot();
+      const pg = new Page({ title: `Page ${p.pages.length + 1}` });
+      p.addPage(pg);
+      ProjectStorage.save(p);
+      this.currentPageIndex = p.pages.length - 1;
+      this.currentPage = pg;
       this.currentView = "page";
       this.currentPageTab = "insert";
       this.selectedTagUid = null;
@@ -759,63 +761,63 @@ class App {
       this.saveToHash();
       this.refreshUI();
     });
-    header.appendChild(newBtn);
-    container.appendChild(header);
-    if (project.pages.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
-      empty.textContent = window.i18n.t("project.noProjects");
-      container.appendChild(empty);
+    h.appendChild(nb);
+    container.appendChild(h);
+    if (p.pages.length === 0) {
+      const e = document.createElement("p");
+      e.className = "empty-state";
+      e.textContent = window.i18n.t("project.noProjects");
+      container.appendChild(e);
       return;
     }
-    const pageList = document.createElement("div");
-    pageList.className = "page-cards";
-    project.pages.forEach((page, index) => {
-      const card = document.createElement("div");
-      card.className = "page-card";
-      const titleEl = document.createElement("div");
-      titleEl.className = "page-card-title";
-      titleEl.textContent = page.title || `Page ${index + 1}`;
-      card.appendChild(titleEl);
-      const actions = document.createElement("div");
-      actions.className = "page-card-actions";
-      const openBtn = document.createElement("button");
-      openBtn.className = "btn btn-primary btn-small";
-      openBtn.textContent = window.i18n.t("common.edit");
-      openBtn.addEventListener("click", (e) => {
+    const pl = document.createElement("div");
+    pl.className = "page-cards";
+    p.pages.forEach((pg, idx) => {
+      const c = document.createElement("div");
+      c.className = "page-card";
+      const te = document.createElement("div");
+      te.className = "page-card-title";
+      te.textContent = pg.title || `Page ${idx + 1}`;
+      c.appendChild(te);
+      const a = document.createElement("div");
+      a.className = "page-card-actions";
+      const ob = document.createElement("button");
+      ob.className = "btn btn-primary btn-small";
+      ob.textContent = window.i18n.t("common.edit");
+      ob.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.currentPageIndex = index;
-        this.currentPage = page;
+        this.currentPageIndex = idx;
+        this.currentPage = pg;
         this.currentView = "page";
         this.currentPageTab = "insert";
         this.selectedTagUid = null;
         this.showElementEditor = false;
         this.saveToHash();
+        this._saveSnapshot();
         this.refreshUI();
       });
-      actions.appendChild(openBtn);
-      const deleteBtn = document.createElement("button");
-      deleteBtn.className = "btn btn-danger btn-small";
-      deleteBtn.textContent = window.i18n.t("common.delete");
-      deleteBtn.addEventListener("click", (e) => {
+      a.appendChild(ob);
+      const db = document.createElement("button");
+      db.className = "btn btn-danger btn-small";
+      db.textContent = window.i18n.t("common.delete");
+      db.addEventListener("click", (e) => {
         e.stopPropagation();
-        project.removePage(index);
-        ProjectStorage.save(project);
-        if (this.currentPageIndex === index) {
-          this.currentPageIndex = Math.max(0, index - 1);
-          this.currentPage = project.pages[this.currentPageIndex] || null;
+        p.removePage(idx);
+        ProjectStorage.save(p);
+        if (this.currentPageIndex === idx) {
+          this.currentPageIndex = Math.max(0, idx - 1);
+          this.currentPage = p.pages[this.currentPageIndex] || null;
         }
         this.renderProjectView();
       });
-      actions.appendChild(deleteBtn);
-      card.appendChild(actions);
-      pageList.appendChild(card);
+      a.appendChild(db);
+      c.appendChild(a);
+      pl.appendChild(c);
     });
-    container.appendChild(pageList);
+    container.appendChild(pl);
   }
 
   // ==================== PAGE EDITOR ====================
-
   renderPageEditor() {
     if (!this.currentPage) return;
     this._renderPageTabs();
@@ -824,148 +826,214 @@ class App {
   }
 
   _renderPageTabs() {
-    const tabs = this.els.sidebarTabs;
-    tabs.style.display = "flex";
-    tabs.innerHTML = "";
-
-    const backBtn = document.createElement("button");
-    backBtn.className = "tab back-tab";
-    backBtn.textContent = "← " + window.i18n.t("page.backToProject");
-    backBtn.addEventListener("click", () => this.showProjectView());
-    tabs.appendChild(backBtn);
-
-    const pageTabs = [
-      { key: "insert", label: "📦 " + window.i18n.t("page.insert") },
-      { key: "meta", label: "📄 Page" },
-      { key: "head", label: "📋 Meta" },
-      { key: "palettes", label: "🎨 " + window.i18n.t("page.palettes") },
-      { key: "body", label: "🔧 " + window.i18n.t("page.body") },
-      { key: "styles", label: "✏️ Styles" },
+    const t = this.els.sidebarTabs;
+    t.style.display = "flex";
+    t.innerHTML = "";
+    const bb = document.createElement("button");
+    bb.className = "tab back-tab";
+    bb.textContent = "← " + window.i18n.t("page.backToProject");
+    bb.addEventListener("click", () => this.showProjectView());
+    t.appendChild(bb);
+    const tabs = [
+      { k: "insert", l: "📦 " + window.i18n.t("page.insert") },
+      { k: "meta", l: "📄 Page" },
+      { k: "head", l: "📋 Meta" },
+      { k: "palettes", l: "🎨 " + window.i18n.t("page.palettes") },
+      { k: "body", l: "🔧 " + window.i18n.t("page.body") },
+      { k: "styles", l: "✏️ Styles" },
     ];
-
-    const effectiveTab = this.showElementEditor
-      ? "element"
-      : this.currentPageTab;
-    for (const tabInfo of pageTabs) {
-      const tab = this._createTab(
-        tabInfo.key,
-        tabInfo.label,
-        this.currentPageTab === tabInfo.key && !this.showElementEditor,
+    for (const ti of tabs) {
+      const tab = this._tab(
+        ti.k,
+        ti.l,
+        this.currentPageTab === ti.k && !this.showElementEditor,
       );
       tab.addEventListener("click", () => {
-        this.currentPageTab = tabInfo.key;
+        this.currentPageTab = ti.k;
         this.showElementEditor = false;
         this.refreshUI();
       });
-      tabs.appendChild(tab);
+      t.appendChild(tab);
     }
     if (this.showElementEditor) {
-      const elemTab = this._createTab("element", "✏️ Element", true);
-      elemTab.addEventListener("click", () => {});
-      tabs.appendChild(elemTab);
+      const et = this._tab("element", "✏️ Element", true);
+      et.addEventListener("click", () => {});
+      t.appendChild(et);
     }
   }
 
   _renderPageContent() {
     if (!this.currentPage) return;
-    const content = this.els.sidebarContent;
-    content.innerHTML = "";
+    const c = this.els.sidebarContent;
+    c.innerHTML = "";
     switch (this.currentPageTab) {
       case "insert":
-        this._renderInsertPanel(content);
+        this._renderInsertPanel(c);
         break;
       case "meta":
-        this._renderPageMeta(content);
+        this._renderPageMeta(c);
         break;
       case "head":
-        this._renderPageHead(content);
+        this._renderPageHead(c);
         break;
       case "palettes":
-        this._renderPagePalettes(content);
+        this._renderPagePalettes(c);
         break;
       case "body":
-        this._renderPageBody(content);
+        this._renderPageBody(c);
         break;
       case "styles":
-        this._renderPageStyles(content);
+        this._renderPageStyles(c);
         break;
       case "element":
-        this._renderElementEditor(content);
+        this._renderElementEditor(c);
         break;
     }
   }
 
-  // ——— Page Meta ———
-
   _renderPageMeta(container) {
-    const page = this.currentPage;
-    const form = document.createElement("div");
-    form.className = "form";
-    form.appendChild(
-      this._createFormGroup(
-        window.i18n.t("page.pageTitle"),
-        "text",
-        page.title,
-        (v) => {
-          page.title = v;
-          this.markDirty();
-          this.renderPreview();
-        },
-      ),
+    const p = this.currentPage;
+    const f = document.createElement("div");
+    f.className = "form";
+    f.appendChild(
+      this._fg(window.i18n.t("page.pageTitle"), "text", p.title, (v) => {
+        p.title = v;
+        this.markDirty();
+        this.renderPreview();
+      }),
     );
-    form.appendChild(
-      this._createFormGroup(
-        window.i18n.t("page.width"),
-        "text",
-        page.width,
-        (v) => {
-          page.width = v;
-          this.markDirty();
-          this.renderPreview();
-        },
-      ),
+    f.appendChild(
+      this._fg(window.i18n.t("page.width"), "text", p.width, (v) => {
+        p.width = v;
+        this.markDirty();
+        this.renderPreview();
+      }),
     );
-    form.appendChild(
-      this._createFormGroup(
-        window.i18n.t("page.height"),
-        "text",
-        page.height,
-        (v) => {
-          page.height = v;
-          this.markDirty();
-          this.renderPreview();
-        },
-      ),
+    f.appendChild(
+      this._fg(window.i18n.t("page.height"), "text", p.height, (v) => {
+        p.height = v;
+        this.markDirty();
+        this.renderPreview();
+      }),
     );
-    container.appendChild(form);
+    container.appendChild(f);
+
+    // Action buttons
+    const actions = document.createElement("div");
+    actions.style.cssText =
+      "display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border)";
+    const vmBtn = document.createElement("button");
+    vmBtn.className = "btn btn-small";
+    vmBtn.textContent = "👁 View Mode";
+    vmBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.toggleViewMode();
+    });
+    actions.appendChild(vmBtn);
+    const chBtn = document.createElement("button");
+    chBtn.className = "btn btn-small";
+    chBtn.textContent = "📋 Copy HTML";
+    chBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.showCopyHtmlModal();
+    });
+    actions.appendChild(chBtn);
+    const chcBtn = document.createElement("button");
+    chcBtn.className = "btn btn-small";
+    chcBtn.textContent = "📋 Copy (No Inline)";
+    chcBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._copyHtmlNoInline();
+    });
+    actions.appendChild(chcBtn);
+    const exBtn = document.createElement("button");
+    exBtn.className = "btn btn-small";
+    exBtn.textContent = "💾 Save JSON";
+    exBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.exportProject();
+    });
+    actions.appendChild(exBtn);
+    container.appendChild(actions);
+
+    // Assets section
+    const ah = document.createElement("h3");
+    ah.textContent = "📎 Assets";
+    ah.style.cssText =
+      "font-size:13px;color:var(--accent);margin-top:12px;margin-bottom:4px";
+    container.appendChild(ah);
+    if (!this.currentProject._assets) this.currentProject._assets = [];
+    const assets = this.currentProject._assets;
+    for (let i = 0; i < assets.length; i++) {
+      const row = document.createElement("div");
+      row.style.cssText =
+        "display:flex;gap:4px;align-items:center;margin-bottom:4px";
+      const ni = document.createElement("input");
+      ni.type = "text";
+      ni.className = "input input-small";
+      ni.style.flex = "1";
+      ni.value = assets[i].name || "";
+      ni.placeholder = "Name";
+      ni.addEventListener("input", () => {
+        assets[i].name = ni.value;
+        this.markDirty();
+      });
+      row.appendChild(ni);
+      const ui = document.createElement("input");
+      ui.type = "text";
+      ui.className = "input input-small";
+      ui.style.flex = "2";
+      ui.value = assets[i].url || "";
+      ui.placeholder = "URL";
+      ui.addEventListener("input", () => {
+        assets[i].url = ui.value;
+        this.markDirty();
+      });
+      row.appendChild(ui);
+      const db = document.createElement("button");
+      db.className = "btn btn-danger btn-small";
+      db.textContent = "✕";
+      db.addEventListener("click", (e) => {
+        e.stopPropagation();
+        assets.splice(i, 1);
+        this._rerender(container, this._renderPageMeta.bind(this));
+      });
+      row.appendChild(db);
+      container.appendChild(row);
+    }
+    const ab = document.createElement("button");
+    ab.className = "btn btn-small";
+    ab.textContent = "+ Add Asset";
+    ab.addEventListener("click", (e) => {
+      e.stopPropagation();
+      assets.push({ name: "", url: "" });
+      this.markDirty();
+      this._rerender(container, this._renderPageMeta.bind(this));
+    });
+    container.appendChild(ab);
   }
 
-  // ——— Head with Constructor ———
-
+  // ——— Head ———
   _renderPageHead(container) {
     container.innerHTML = "";
     const page = this.currentPage;
-
-    // Preset constructor buttons
-    const constructor = document.createElement("div");
-    constructor.className = "head-section";
-    constructor.innerHTML = `<h3>Quick Add</h3>`;
-    const presetRow = document.createElement("div");
-    presetRow.style.cssText =
-      "display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px";
-
+    const con = document.createElement("div");
+    con.className = "head-section";
+    con.innerHTML = "<h3>Quick Add</h3>";
+    const pr = document.createElement("div");
+    pr.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px";
     const presets = [
-      {
-        label: "📄 Charset",
-        fn: () => {
+      [
+        "📄 Charset",
+        () => {
           page.head.meta.push(new Meta({ charset: "UTF-8" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "📱 Viewport",
-        fn: () => {
+      ],
+      [
+        "📱 Viewport",
+        () => {
           page.head.meta.push(
             new Meta({
               name: "viewport",
@@ -973,118 +1041,89 @@ class App {
             }),
           );
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "📝 Description",
-        fn: () => {
+      ],
+      [
+        "📝 Description",
+        () => {
           page.head.meta.push(new Meta({ name: "description", content: "" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "🔑 Keywords",
-        fn: () => {
+      ],
+      [
+        "🔑 Keywords",
+        () => {
           page.head.meta.push(new Meta({ name: "keywords", content: "" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "👤 Author",
-        fn: () => {
+      ],
+      [
+        "👤 Author",
+        () => {
           page.head.meta.push(new Meta({ name: "author", content: "" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "🔄 X-UA-Compatible",
-        fn: () => {
+      ],
+      [
+        "🔄 X-UA",
+        () => {
           page.head.meta.push(
             new Meta({ httpEquiv: "X-UA-Compatible", content: "IE=edge" }),
           );
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "🔗 OG Title",
-        fn: () => {
+      ],
+      [
+        "🔗 OG Title",
+        () => {
           page.head.meta.push(new Meta({ property: "og:title", content: "" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "🖼 OG Image",
-        fn: () => {
-          page.head.meta.push(new Meta({ property: "og:image", content: "" }));
-          this.markDirty();
-          this._renderPageHead(container);
-        },
-      },
-      {
-        label: "📄 OG Description",
-        fn: () => {
-          page.head.meta.push(
-            new Meta({ property: "og:description", content: "" }),
-          );
-          this.markDirty();
-          this._renderPageHead(container);
-        },
-      },
-      {
-        label: "📎 OG URL",
-        fn: () => {
-          page.head.meta.push(new Meta({ property: "og:url", content: "" }));
-          this.markDirty();
-          this._renderPageHead(container);
-        },
-      },
-      {
-        label: "➕ Manual Meta",
-        fn: () => {
+      ],
+      [
+        "➕ Manual Meta",
+        () => {
           page.head.meta.push(new Meta());
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "📎 CSS Link",
-        fn: () => {
+      ],
+      [
+        "📎 CSS Link",
+        () => {
           page.head.link.push(new Link({ rel: "stylesheet", href: "" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
-      {
-        label: "🔖 Favicon",
-        fn: () => {
+      ],
+      [
+        "🔖 Favicon",
+        () => {
           page.head.favicons.push(new Favicon({ href: "" }));
           this.markDirty();
-          this._renderPageHead(container);
+          this._rerender(container, this._renderPageHead.bind(this));
         },
-      },
+      ],
     ];
-
-    for (const p of presets) {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-small";
-      btn.textContent = p.label;
-      btn.style.cssText = "font-size:10px;padding:2px 6px";
-      btn.addEventListener("click", (e) => {
+    for (const [label, fn] of presets) {
+      const b = document.createElement("button");
+      b.className = "btn btn-small";
+      b.textContent = label;
+      b.style.cssText = "font-size:10px;padding:2px 6px";
+      b.addEventListener("click", (e) => {
         e.stopPropagation();
-        p.fn();
+        fn();
       });
-      presetRow.appendChild(btn);
+      pr.appendChild(b);
     }
-    constructor.appendChild(presetRow);
-    container.appendChild(constructor);
-
-    // Manual sections
+    con.appendChild(pr);
+    container.appendChild(con);
     const sections = [
       {
         key: "meta",
@@ -1133,165 +1172,152 @@ class App {
         addLabel: "+ Favicon",
       },
     ];
-
-    for (const section of sections) {
-      const sectionEl = document.createElement("div");
-      sectionEl.className = "head-section";
-      const header = document.createElement("h3");
-      header.textContent = section.label;
-      sectionEl.appendChild(header);
-
-      for (let i = 0; i < section.items.length; i++) {
-        const itemEl = document.createElement("div");
-        itemEl.className = "head-item";
-        for (const field of section.fields) {
-          itemEl.appendChild(
-            this._createFormGroup(
-              field.label,
-              field.type,
-              section.items[i][field.key] || "",
-              (val) => {
-                section.items[i][field.key] = val;
+    for (const s of sections) {
+      const se = document.createElement("div");
+      se.className = "head-section";
+      const sh = document.createElement("h3");
+      sh.textContent = s.label;
+      se.appendChild(sh);
+      for (let i = 0; i < s.items.length; i++) {
+        const ie = document.createElement("div");
+        ie.className = "head-item";
+        for (const f of s.fields)
+          ie.appendChild(
+            this._fg(
+              f.label,
+              f.type,
+              s.items[i][f.key] || "",
+              (v) => {
+                s.items[i][f.key] = v;
                 this.markDirty();
               },
               { small: true },
             ),
           );
-        }
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn btn-danger btn-small";
-        delBtn.textContent = "✕";
-        delBtn.addEventListener("click", (e) => {
+        const db = document.createElement("button");
+        db.className = "btn btn-danger btn-small";
+        db.textContent = "✕";
+        db.addEventListener("click", (e) => {
           e.stopPropagation();
-          section.items.splice(i, 1);
+          s.items.splice(i, 1);
           this.markDirty();
           this._rerender(container, this._renderPageHead.bind(this));
         });
-        itemEl.appendChild(delBtn);
-        sectionEl.appendChild(itemEl);
+        ie.appendChild(db);
+        se.appendChild(ie);
       }
-
-      const addBtn = document.createElement("button");
-      addBtn.className = "btn btn-small";
-      addBtn.textContent = section.addLabel;
-      addBtn.addEventListener("click", (e) => {
+      const ab = document.createElement("button");
+      ab.className = "btn btn-small";
+      ab.textContent = s.addLabel;
+      ab.addEventListener("click", (e) => {
         e.stopPropagation();
-        section.items.push(section.createItem());
+        s.items.push(s.createItem());
         this.markDirty();
         this._rerender(container, this._renderPageHead.bind(this));
       });
-      sectionEl.appendChild(addBtn);
-      container.appendChild(sectionEl);
+      se.appendChild(ab);
+      container.appendChild(se);
     }
   }
 
-  // ——— Page Style Sheet ———
-
+  // ——— Styles ———
   _renderPageStyles(container) {
     const page = this.currentPage;
-
-    const addBtn = document.createElement("button");
-    addBtn.className = "btn btn-primary btn-small";
-    addBtn.textContent = "+ Add Style Rule";
-    addBtn.addEventListener("click", (e) => {
+    const ab = document.createElement("button");
+    ab.className = "btn btn-primary btn-small";
+    ab.textContent = "+ Add Style Rule";
+    ab.addEventListener("click", (e) => {
       e.stopPropagation();
+      this._saveSnapshot();
       page.styles.push(new StyleSet({ selector: "", styles: [] }));
       this.markDirty();
       this._rerender(container, this._renderPageStyles.bind(this));
     });
-    container.appendChild(addBtn);
-
+    container.appendChild(ab);
     if (page.styles.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
-      empty.textContent = "No style rules. Add one above.";
-      container.appendChild(empty);
+      const e = document.createElement("p");
+      e.className = "empty-state";
+      e.textContent = "No style rules.";
+      container.appendChild(e);
       return;
     }
-
     for (let si = 0; si < page.styles.length; si++) {
       const ss = page.styles[si];
-      const section = document.createElement("div");
-      section.className = "head-section";
-
-      const selGroup = this._createFormGroup(
-        "Selector",
-        "text",
-        ss.selector,
-        (v) => {
-          ss.selector = v;
-          this.markDirty();
-          this.renderPreview();
-        },
-        { small: true },
+      const sec = document.createElement("div");
+      sec.className = "head-section";
+      sec.appendChild(
+        this._fg(
+          "Selector",
+          "text",
+          ss.selector,
+          (v) => {
+            ss.selector = v;
+            this.markDirty();
+            this.renderPreview();
+          },
+          { small: true },
+        ),
       );
-      section.appendChild(selGroup);
-
-      for (let si2 = 0; si2 < ss.styles.length; si2++) {
-        const row = document.createElement("div");
-        row.className = "advanced-style-row";
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "input input-small";
-        input.value = ss.styles[si2];
-        input.style.flex = "1";
-        input.addEventListener("change", () => {
-          ss.styles[si2] = input.value;
+      for (let sj = 0; sj < ss.styles.length; sj++) {
+        const r = document.createElement("div");
+        r.className = "advanced-style-row";
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "input input-small";
+        inp.value = ss.styles[sj];
+        inp.style.flex = "1";
+        inp.addEventListener("change", () => {
+          ss.styles[sj] = inp.value;
           this.markDirty();
           this.renderPreview();
         });
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn btn-danger btn-small";
-        delBtn.textContent = "✕";
-        delBtn.addEventListener("click", (e) => {
+        const db = document.createElement("button");
+        db.className = "btn btn-danger btn-small";
+        db.textContent = "✕";
+        db.addEventListener("click", (e) => {
           e.stopPropagation();
-          ss.styles.splice(si2, 1);
+          ss.styles.splice(sj, 1);
           this.markDirty();
           this._rerender(container, this._renderPageStyles.bind(this));
         });
-        row.appendChild(input);
-        row.appendChild(delBtn);
-        section.appendChild(row);
+        r.appendChild(inp);
+        r.appendChild(db);
+        sec.appendChild(r);
       }
-
-      const addRuleBtn = document.createElement("button");
-      addRuleBtn.className = "btn btn-small";
-      addRuleBtn.textContent = "+ Rule";
-      addRuleBtn.addEventListener("click", (e) => {
+      const rb = document.createElement("button");
+      rb.className = "btn btn-small";
+      rb.textContent = "+ Rule";
+      rb.addEventListener("click", (e) => {
         e.stopPropagation();
         ss.styles.push("");
         this.markDirty();
         this._rerender(container, this._renderPageStyles.bind(this));
       });
-      section.appendChild(addRuleBtn);
-
-      const delSecBtn = document.createElement("button");
-      delSecBtn.className = "btn btn-danger btn-small";
-      delSecBtn.textContent = "Delete Rule";
-      delSecBtn.addEventListener("click", (e) => {
+      sec.appendChild(rb);
+      const ds = document.createElement("button");
+      ds.className = "btn btn-danger btn-small";
+      ds.textContent = "Delete";
+      ds.addEventListener("click", (e) => {
         e.stopPropagation();
         page.styles.splice(si, 1);
         this.markDirty();
         this._rerender(container, this._renderPageStyles.bind(this));
       });
-      section.appendChild(delSecBtn);
-
-      container.appendChild(section);
+      sec.appendChild(ds);
+      container.appendChild(sec);
     }
     this.renderPreview();
   }
 
   // ——— Palettes ———
-
   _renderPagePalettes(container) {
     const page = this.currentPage;
-
-    // Add palette button at top
-    const addPalBtn = document.createElement("button");
-    addPalBtn.className = "btn";
-    addPalBtn.textContent = "+ " + window.i18n.t("palette.addPalette");
-    addPalBtn.addEventListener("click", (e) => {
+    const ab = document.createElement("button");
+    ab.className = "btn";
+    ab.textContent = "+ " + window.i18n.t("palette.addPalette");
+    ab.addEventListener("click", (e) => {
       e.stopPropagation();
+      this._saveSnapshot();
       page.palettes.push(
         new Palette({
           name: `Palette ${page.palettes.length + 1}`,
@@ -1301,200 +1327,197 @@ class App {
       this.markDirty();
       this._rerender(container, this._renderPagePalettes.bind(this));
     });
-    container.appendChild(addPalBtn);
-
+    container.appendChild(ab);
     for (let pi = 0; pi < page.palettes.length; pi++) {
-      const palette = page.palettes[pi];
-      const palEl = document.createElement("div");
-      palEl.className = "palette-section";
-
-      // Header row with name + delete
-      const headerRow = document.createElement("div");
-      headerRow.style.cssText = "display:flex;gap:6px;align-items:center";
-      const nameInput = document.createElement("input");
-      nameInput.type = "text";
-      nameInput.className = "input input-small";
-      nameInput.style.flex = "1";
-      nameInput.value = palette.name;
-      nameInput.placeholder = window.i18n.t("palette.name");
-      nameInput.addEventListener("input", () => {
-        palette.name = nameInput.value;
+      const pal = page.palettes[pi];
+      const pe = document.createElement("div");
+      pe.className = "palette-section";
+      const hr = document.createElement("div");
+      hr.style.cssText = "display:flex;gap:6px;align-items:center";
+      const ni = document.createElement("input");
+      ni.type = "text";
+      ni.className = "input input-small";
+      ni.style.flex = "1";
+      ni.value = pal.name;
+      ni.placeholder = window.i18n.t("palette.name");
+      ni.addEventListener("input", () => {
+        pal.name = ni.value;
         this.markDirty();
       });
-      headerRow.appendChild(nameInput);
-
-      const delPalBtn = document.createElement("button");
-      delPalBtn.className = "btn btn-danger btn-small";
-      delPalBtn.textContent = "✕";
-      delPalBtn.addEventListener("click", (e) => {
+      hr.appendChild(ni);
+      const dp = document.createElement("button");
+      dp.className = "btn btn-danger btn-small";
+      dp.textContent = "✕";
+      dp.addEventListener("click", (e) => {
         e.stopPropagation();
         page.palettes.splice(pi, 1);
         this.markDirty();
         this._rerender(container, this._renderPagePalettes.bind(this));
       });
-      headerRow.appendChild(delPalBtn);
-      palEl.appendChild(headerRow);
-
-      // Colors
-      for (let ci = 0; ci < palette.colors.length; ci++) {
-        const [colorName, colorValue] = palette.colors[ci];
-        const colorRow = document.createElement("div");
-        colorRow.className = "color-row";
-        const cnInput = document.createElement("input");
-        cnInput.type = "text";
-        cnInput.className = "input input-small";
-        cnInput.value = colorName;
-        cnInput.placeholder = window.i18n.t("palette.colorName");
-        cnInput.addEventListener("input", () => {
-          palette.colors[ci][0] = cnInput.value;
+      hr.appendChild(dp);
+      pe.appendChild(hr);
+      for (let ci = 0; ci < pal.colors.length; ci++) {
+        const [cn, cv] = pal.colors[ci];
+        const cr = document.createElement("div");
+        cr.className = "color-row";
+        const cni = document.createElement("input");
+        cni.type = "text";
+        cni.className = "input input-small";
+        cni.value = cn;
+        cni.placeholder = window.i18n.t("palette.colorName");
+        cni.addEventListener("input", () => {
+          pal.colors[ci][0] = cni.value;
           this.markDirty();
           this.renderPreview();
         });
-        const cvInput = document.createElement("input");
-        cvInput.type = "color";
-        cvInput.className = "color-input";
-        cvInput.value = colorValue;
-        cvInput.addEventListener("input", () => {
-          palette.colors[ci][1] = cvInput.value;
+        const cvi = document.createElement("input");
+        cvi.type = "color";
+        cvi.className = "color-input";
+        cvi.value = cv;
+        cvi.addEventListener("input", () => {
+          pal.colors[ci][1] = cvi.value;
           this.markDirty();
           this.renderPreview();
         });
-        const delColBtn = document.createElement("button");
-        delColBtn.className = "btn btn-danger btn-small";
-        delColBtn.textContent = "✕";
-        delColBtn.addEventListener("click", (e) => {
+        const dc = document.createElement("button");
+        dc.className = "btn btn-danger btn-small";
+        dc.textContent = "✕";
+        dc.addEventListener("click", (e) => {
           e.stopPropagation();
-          palette.colors.splice(ci, 1);
+          pal.colors.splice(ci, 1);
           this.markDirty();
           this._rerender(container, this._renderPagePalettes.bind(this));
         });
-        colorRow.appendChild(cnInput);
-        colorRow.appendChild(cvInput);
-        colorRow.appendChild(delColBtn);
-        palEl.appendChild(colorRow);
+        cr.appendChild(cni);
+        cr.appendChild(cvi);
+        cr.appendChild(dc);
+        pe.appendChild(cr);
       }
-
-      const addColorBtn = document.createElement("button");
-      addColorBtn.className = "btn btn-small";
-      addColorBtn.textContent = "+ " + window.i18n.t("palette.addColor");
-      addColorBtn.addEventListener("click", (e) => {
+      const ac = document.createElement("button");
+      ac.className = "btn btn-small";
+      ac.textContent = "+ " + window.i18n.t("palette.addColor");
+      ac.addEventListener("click", (e) => {
         e.stopPropagation();
-        palette.colors.push(["", "#000000"]);
+        pal.colors.push(["", "#000000"]);
         this.markDirty();
         this._rerender(container, this._renderPagePalettes.bind(this));
       });
-      palEl.appendChild(addColorBtn);
-
-      container.appendChild(palEl);
+      pe.appendChild(ac);
+      container.appendChild(pe);
     }
   }
 
-  // ——— Body (Elements Tree) ———
-
+  // ==================== BODY (TREE) ====================
   _renderPageBody(container) {
     const page = this.currentPage;
-
-    const bodyHeader = document.createElement("div");
-    bodyHeader.className = "body-header";
-
-    const addChildBtn = document.createElement("button");
-    addChildBtn.className = "btn btn-primary";
-    addChildBtn.textContent = "+ " + window.i18n.t("element.addChild");
-    addChildBtn.addEventListener("click", (e) => {
+    const h = document.createElement("div");
+    h.className = "body-header";
+    const ab = document.createElement("button");
+    ab.className = "btn btn-primary";
+    ab.textContent = "+ " + window.i18n.t("element.addChild");
+    ab.addEventListener("click", (e) => {
       e.stopPropagation();
       if (this.selectedTagUid) {
-        const tag = page.findTagByUid(this.selectedTagUid);
-        if (tag) {
-          this._showAddChildModal(tag);
+        const tg = page.findTagByUid(this.selectedTagUid);
+        if (tg) {
+          this._showAddChildModal(tg, false);
           return;
         }
       }
+      this._saveSnapshot();
       page.body.push(new Tag({ tagName: "div" }));
       this.markDirty();
       this.renderPreview();
       this._rerender(container, this._renderPageBody.bind(this));
     });
-    bodyHeader.appendChild(addChildBtn);
-    container.appendChild(bodyHeader);
-
+    h.appendChild(ab);
+    container.appendChild(h);
     if (page.body.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty-state";
-      empty.textContent = "No elements. Add one above.";
-      container.appendChild(empty);
+      const e = document.createElement("p");
+      e.className = "empty-state";
+      e.textContent = "No elements.";
+      container.appendChild(e);
       return;
     }
-
-    const treeEl = document.createElement("div");
-    treeEl.className = "body-tree compact";
-    for (let i = 0; i < page.body.length; i++) {
-      this._renderTagTreeNode(
-        page.body[i],
-        treeEl,
-        0,
-        page.body,
-        i,
-        page,
-        false,
-      );
-    }
-    container.appendChild(treeEl);
+    const te = document.createElement("div");
+    te.className = "body-tree compact";
+    for (let i = 0; i < page.body.length; i++)
+      this._renderTreeNode(page.body[i], te, 0, page.body, i, page, false);
+    container.appendChild(te);
   }
 
-  _showAddChildModal(parentTag) {
-    const html = `
+  _showAddChildModal(parentTag, navigateToElement = true) {
+    this._showModalContent(`
       <h2>Add Child Element</h2>
       <div class="form" style="margin-top:12px">
-        <div class="form-group">
-          <label class="form-label">Tag Name</label>
-          <input type="text" class="input" id="modal-child-tag" value="div" list="tag-suggestions">
-          <datalist id="tag-suggestions">
-            <option value="div"><option value="span"><option value="p"><option value="h1"><option value="h2">
-            <option value="h3"><option value="a"><option value="img"><option value="ul"><option value="li">
-            <option value="button"><option value="input"><option value="section"><option value="header">
-            <option value="footer"><option value="nav"><option value="article"><option value="aside">
-          </datalist>
+        <div class="form-group"><label class="form-label">Tag Name</label><input type="text" class="input" id="modal-child-tag" value="div" list="tag-suggestions">
+          <datalist id="tag-suggestions"><option value="div"><option value="span"><option value="p"><option value="h1"><option value="h2"><option value="h3"><option value="a"><option value="img"><option value="ul"><option value="li"><option value="button"><option value="input"><option value="section"></datalist>
         </div>
-        <div class="form-group">
-          <label class="form-label">Inner HTML (optional)</label>
-          <input type="text" class="input" id="modal-child-html" placeholder="Text content or inner HTML">
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-primary" id="modal-add-child-btn">Add</button>
-          <button class="btn" id="modal-cancel-child-btn">Cancel</button>
-        </div>
-      </div>`;
-    this.showModal(html);
-
-    document
-      .getElementById("modal-add-child-btn")
-      .addEventListener("click", () => {
-        const tagName =
-          document.getElementById("modal-child-tag").value.trim() || "div";
-        const inner = document.getElementById("modal-child-html").value.trim();
-        const tag = new Tag({ tagName: tagName.toLowerCase() });
-        if (inner) {
-          // Try to parse as HTML
-          const wrapper = document.createElement("div");
-          wrapper.innerHTML = inner;
-          if (wrapper.children.length > 0) {
-            for (const el of wrapper.children) {
-              const childTag = this._domToTag(el);
-              if (childTag) tag.children.push(childTag);
-            }
-          } else {
-            tag.textContent = inner;
-          }
-        }
+        <div class="form-group"><label class="form-label">Inner HTML (optional)</label><input type="text" class="input" id="modal-child-html" placeholder="Text content"></div>
+        <div style="margin-top:8px"><button class="btn btn-small" id="insert-grid-toggle">📦 Show Insert Grid</button></div>
+        <div id="insert-grid-container" style="display:none;margin-top:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary" id="modal-add-child-btn">Add</button><button class="btn" id="modal-cancel-child-btn">Cancel</button></div>
+      </div>`);
+    const toggleBtn = document.getElementById("insert-grid-toggle");
+    const gridContainer = document.getElementById("insert-grid-container");
+    toggleBtn.addEventListener("click", () => {
+      if (gridContainer.style.display !== "none") {
+        gridContainer.style.display = "none";
+        return;
+      }
+      gridContainer.style.display = "block";
+      gridContainer.innerHTML = "";
+      this._renderInsertGrid(gridContainer, (el) => {
+        const tag = new Tag({
+          tagName: el.tag,
+          textContent: el.defaultContent || "",
+          attrs: el.attrs ? { ...el.attrs } : {},
+          styles: el.styles ? [...el.styles] : [],
+          children: el.children
+            ? el.children.map((c) => Tag.fromJSON(c.toJSON()))
+            : [],
+        });
+        this._saveSnapshot();
         parentTag.children.push(tag);
         this.markDirty();
         this.renderPreview();
         this.closeModal();
-        // Select new element
-        this.selectedTagUid = tag._uid;
-        this.showElementEditor = true;
-        this.currentPageTab = "element";
-        this.refreshUI();
+        if (navigateToElement) {
+          this.selectedTagUid = tag._uid;
+          this.showElementEditor = true;
+          this.currentPageTab = "element";
+          this.refreshUI();
+        }
+      });
+    });
+    document
+      .getElementById("modal-add-child-btn")
+      .addEventListener("click", () => {
+        const tn =
+          document.getElementById("modal-child-tag").value.trim() || "div";
+        const inner = document.getElementById("modal-child-html").value.trim();
+        const tag = new Tag({ tagName: tn.toLowerCase() });
+        if (inner) {
+          const w = document.createElement("div");
+          w.innerHTML = inner;
+          if (w.children.length > 0) {
+            for (const el of w.children) {
+              const ct = this._domToTag(el);
+              if (ct) tag.children.push(ct);
+            }
+          } else tag.textContent = inner;
+        }
+        this._saveSnapshot();
+        parentTag.children.push(tag);
+        this.markDirty();
+        this.renderPreview();
+        this.closeModal();
+        if (navigateToElement) {
+          this.selectedTagUid = tag._uid;
+          this.showElementEditor = true;
+          this.currentPageTab = "element";
+          this.refreshUI();
+        }
       });
     document
       .getElementById("modal-cancel-child-btn")
@@ -1502,7 +1525,52 @@ class App {
     setTimeout(() => document.getElementById("modal-child-tag").focus(), 50);
   }
 
-  _renderTagTreeNode(
+  _renderInsertGrid(container, onInsert) {
+    const groups = [
+      {
+        items: [
+          { label: "📦 Div", tag: "div" },
+          { label: "🔤 Span", tag: "span" },
+          { label: "📝 Paragraph", tag: "p", defaultContent: "Text" },
+          {
+            label: "🔗 Link",
+            tag: "a",
+            attrs: { href: "#" },
+            defaultContent: "Link",
+          },
+          { label: "🔘 Button", tag: "button", defaultContent: "Button" },
+          { label: "✏️ Input", tag: "input", attrs: { type: "text" } },
+          { label: "📄 Textarea", tag: "textarea" },
+          { label: "🖼️ Image", tag: "img", attrs: { src: "", alt: "" } },
+          {
+            label: "📋 List",
+            tag: "ul",
+            children: [new Tag({ tagName: "li", textContent: "Item" })],
+          },
+          { label: "H1", tag: "h1", defaultContent: "Heading" },
+          { label: "H2", tag: "h2", defaultContent: "Heading" },
+          { label: "📐 Section", tag: "section", defaultContent: "Section" },
+        ],
+      },
+    ];
+    for (const g of groups) {
+      const grid = document.createElement("div");
+      grid.className = "insert-grid";
+      for (const el of g.items) {
+        const btn = document.createElement("button");
+        btn.className = "insert-btn";
+        btn.textContent = el.label;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onInsert(el);
+        });
+        grid.appendChild(btn);
+      }
+      container.appendChild(grid);
+    }
+  }
+
+  _renderTreeNode(
     tag,
     parentEl,
     depth,
@@ -1516,12 +1584,49 @@ class App {
     node.className = "tree-node";
     node.style.paddingLeft = `${depth * 12 + 4}px`;
     node.dataset.uid = tag._uid;
+    node.draggable = true;
     if (tag._uid === this.selectedTagUid) node.classList.add("selected");
-
+    node.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", tag._uid);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    node.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      node.style.opacity = "0.5";
+    });
+    node.addEventListener("dragleave", () => {
+      node.style.opacity = "";
+    });
+    node.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      node.style.opacity = "";
+      const draggedUid = e.dataTransfer.getData("text/plain");
+      if (draggedUid === tag._uid) return;
+      const srcTag = page.findTagByUid(draggedUid);
+      if (!srcTag) return;
+      // Find source parent and remove
+      const removeFromParent = (parent) => {
+        for (let i = 0; i < parent.length; i++) {
+          if (parent[i]._uid === draggedUid) {
+            parent.splice(i, 1);
+            return true;
+          }
+          if (this._deleteFromTree(parent[i], draggedUid)) return true;
+        }
+        return false;
+      };
+      removeFromParent(page.body);
+      // Insert as child of this node
+      tag.children.push(srcTag);
+      this._saveSnapshot();
+      this.markDirty();
+      this.refreshUI();
+      this.renderPreview();
+    });
     const header = document.createElement("div");
     header.className = "tree-node-header";
-
-    // Click to select
     header.addEventListener("click", (e) => {
       e.stopPropagation();
       this.selectedTagUid = tag._uid;
@@ -1530,68 +1635,55 @@ class App {
       this.refreshUI();
       this.renderPreview();
     });
-
-    const toggleBtn = document.createElement("span");
-    toggleBtn.className = "tree-toggle";
-    const hasChildren = tag.children.length > 0;
-    toggleBtn.textContent = hasChildren ? "▶" : "·";
-    toggleBtn.addEventListener("click", (e) => {
+    const tb = document.createElement("span");
+    tb.className = "tree-toggle";
+    const hc = tag.children.length > 0;
+    tb.textContent = hc ? "▶" : "·";
+    tb.addEventListener("click", (e) => {
       e.stopPropagation();
       node.classList.toggle("collapsed");
-      toggleBtn.textContent = node.classList.contains("collapsed") ? "▶" : "▼";
+      tb.textContent = node.classList.contains("collapsed") ? "▶" : "▼";
     });
-
-    const nameEl = document.createElement("span");
-    nameEl.className = "tree-tag-name";
-
-    // Show ID, or tag name, or class/attrs
-    if (tag.id) {
-      nameEl.textContent = `#${tag.id}`;
-    } else {
-      nameEl.textContent = tag.tagName;
+    const ne = document.createElement("span");
+    ne.className = "tree-tag-name";
+    if (tag.id) ne.textContent = `#${tag.id}`;
+    else ne.textContent = tag.tagName;
+    const ex = [];
+    if (tag.class.length > 0) ex.push("." + tag.class.join("."));
+    if (tag.attrs.name) ex.push(`[name="${tag.attrs.name}"]`);
+    if (tag.attrs.href) ex.push("[href]");
+    if (ex.length > 0) {
+      const es = document.createElement("span");
+      es.className = "tree-class";
+      es.textContent = ex.join("");
+      ne.appendChild(es);
     }
-    // Add distinguishing attributes
-    const extras = [];
-    if (tag.class.length > 0) extras.push("." + tag.class.join("."));
-    if (tag.attrs.name) extras.push(`[name="${tag.attrs.name}"]`);
-    if (tag.attrs.href) extras.push(`[href]`);
-    if (extras.length > 0) {
-      const extraSpan = document.createElement("span");
-      extraSpan.className = "tree-class";
-      extraSpan.textContent = extras.join("");
-      nameEl.appendChild(extraSpan);
+    if (hc && !node.classList.contains("collapsed")) {
+      const cs = document.createElement("span");
+      cs.className = "tree-child-count";
+      cs.textContent = ` (${tag.children.length})`;
+      ne.appendChild(cs);
     }
-    if (hasChildren && !node.classList.contains("collapsed")) {
-      const countSpan = document.createElement("span");
-      countSpan.className = "tree-child-count";
-      countSpan.textContent = ` (${tag.children.length})`;
-      nameEl.appendChild(countSpan);
-    }
-
-    header.appendChild(toggleBtn);
-    header.appendChild(nameEl);
-
+    header.appendChild(tb);
+    header.appendChild(ne);
     if (!isChildTree) {
-      const actions = document.createElement("span");
-      actions.className = "tree-actions";
-
-      // Add child button for every element
-      const addBtn = document.createElement("button");
-      addBtn.className = "tree-btn";
-      addBtn.textContent = "+";
-      addBtn.title = window.i18n.t("element.addChild");
-      addBtn.addEventListener("click", (e) => {
+      const acts = document.createElement("span");
+      acts.className = "tree-actions";
+      const ab = document.createElement("button");
+      ab.className = "tree-btn";
+      ab.textContent = "+";
+      ab.title = "Add Child";
+      ab.addEventListener("click", (e) => {
         e.stopPropagation();
-        this._showAddChildModal(tag);
+        this._showAddChildModal(tag, false);
       });
-      actions.appendChild(addBtn);
-
+      acts.appendChild(ab);
       if (!compact && siblingIndex !== undefined) {
-        const selBtn = document.createElement("button");
-        selBtn.className = "tree-btn";
-        selBtn.textContent = "◎";
-        selBtn.title = "Select";
-        selBtn.addEventListener("click", (e) => {
+        const sb = document.createElement("button");
+        sb.className = "tree-btn";
+        sb.textContent = "◎";
+        sb.title = "Select";
+        sb.addEventListener("click", (e) => {
           e.stopPropagation();
           this.selectedTagUid = tag._uid;
           this.showElementEditor = true;
@@ -1599,15 +1691,15 @@ class App {
           this.refreshUI();
           this.renderPreview();
         });
-        actions.appendChild(selBtn);
-
+        acts.appendChild(sb);
         if (siblingIndex > 0) {
-          const upBtn = document.createElement("button");
-          upBtn.className = "tree-btn";
-          upBtn.textContent = "↑";
-          upBtn.title = window.i18n.t("element.moveUp");
-          upBtn.addEventListener("click", (e) => {
+          const ub = document.createElement("button");
+          ub.className = "tree-btn";
+          ub.textContent = "↑";
+          ub.title = "Move Up";
+          ub.addEventListener("click", (e) => {
             e.stopPropagation();
+            this._saveSnapshot();
             [siblings[siblingIndex - 1], siblings[siblingIndex]] = [
               siblings[siblingIndex],
               siblings[siblingIndex - 1],
@@ -1616,15 +1708,16 @@ class App {
             this.refreshUI();
             this.renderPreview();
           });
-          actions.appendChild(upBtn);
+          acts.appendChild(ub);
         }
         if (siblings && siblingIndex < siblings.length - 1) {
-          const downBtn = document.createElement("button");
-          downBtn.className = "tree-btn";
-          downBtn.textContent = "↓";
-          downBtn.title = window.i18n.t("element.moveDown");
-          downBtn.addEventListener("click", (e) => {
+          const db2 = document.createElement("button");
+          db2.className = "tree-btn";
+          db2.textContent = "↓";
+          db2.title = "Move Down";
+          db2.addEventListener("click", (e) => {
             e.stopPropagation();
+            this._saveSnapshot();
             [siblings[siblingIndex], siblings[siblingIndex + 1]] = [
               siblings[siblingIndex + 1],
               siblings[siblingIndex],
@@ -1633,39 +1726,38 @@ class App {
             this.refreshUI();
             this.renderPreview();
           });
-          actions.appendChild(downBtn);
+          acts.appendChild(db2);
         }
-
-        const dupBtn = document.createElement("button");
-        dupBtn.className = "tree-btn";
-        dupBtn.textContent = "⧉";
-        dupBtn.title = window.i18n.t("element.duplicate");
-        dupBtn.addEventListener("click", (e) => {
+        const dp = document.createElement("button");
+        dp.className = "tree-btn";
+        dp.textContent = "⧉";
+        dp.title = "Duplicate";
+        dp.addEventListener("click", (e) => {
           e.stopPropagation();
+          this._saveSnapshot();
           const c = tag.duplicate();
           siblings.splice(siblingIndex + 1, 0, c);
           this.markDirty();
           this.refreshUI();
           this.renderPreview();
         });
-        actions.appendChild(dupBtn);
-
-        const svBtn = document.createElement("button");
-        svBtn.className = "tree-btn";
-        svBtn.textContent = "💾";
-        svBtn.title = "Save as Preset";
-        svBtn.addEventListener("click", (e) => {
+        acts.appendChild(dp);
+        const sv = document.createElement("button");
+        sv.className = "tree-btn";
+        sv.textContent = "💾";
+        sv.title = "Save as Preset";
+        sv.addEventListener("click", (e) => {
           e.stopPropagation();
           this._saveAsPreset(tag);
         });
-        actions.appendChild(svBtn);
-
-        const delBtn = document.createElement("button");
-        delBtn.className = "tree-btn tree-btn-danger";
-        delBtn.textContent = "✕";
-        delBtn.title = window.i18n.t("common.delete");
-        delBtn.addEventListener("click", (e) => {
+        acts.appendChild(sv);
+        const dl = document.createElement("button");
+        dl.className = "tree-btn tree-btn-danger";
+        dl.textContent = "✕";
+        dl.title = "Delete";
+        dl.addEventListener("click", (e) => {
           e.stopPropagation();
+          this._saveSnapshot();
           siblings.splice(siblingIndex, 1);
           this.markDirty();
           if (this.selectedTagUid === tag._uid) {
@@ -1675,22 +1767,19 @@ class App {
           this.refreshUI();
           this.renderPreview();
         });
-        actions.appendChild(delBtn);
+        acts.appendChild(dl);
       }
-
-      header.appendChild(actions);
+      header.appendChild(acts);
     }
-
     node.appendChild(header);
-    if (hasChildren) {
-      const childrenContainer = document.createElement("div");
-      childrenContainer.className = "tree-children";
-      // Start collapsed
+    if (hc) {
+      const cc = document.createElement("div");
+      cc.className = "tree-children";
       node.classList.add("collapsed");
-      for (let ci = 0; ci < tag.children.length; ci++) {
-        this._renderTagTreeNode(
+      for (let ci = 0; ci < tag.children.length; ci++)
+        this._renderTreeNode(
           tag.children[ci],
-          childrenContainer,
+          cc,
           depth + 1,
           tag.children,
           ci,
@@ -1698,46 +1787,38 @@ class App {
           compact,
           isChildTree,
         );
-      }
-      node.appendChild(childrenContainer);
+      node.appendChild(cc);
     }
     parentEl.appendChild(node);
   }
 
-  // ——— Insert Panel (Redesigned with groups, emojis, modals) ———
-
+  // ==================== INSERT PANEL ====================
   _renderInsertPanel(container) {
     const page = this.currentPage;
-
-    // Presets section (from localStorage)
     if (this._presets.length > 0) {
-      const presetsSection = document.createElement("div");
-      presetsSection.className = "insert-section";
-      const presetsTitle = document.createElement("h3");
-      presetsTitle.textContent = "⭐ Presets";
-      presetsTitle.style.cssText =
+      const ps = document.createElement("div");
+      ps.className = "insert-section";
+      const pt = document.createElement("h3");
+      pt.style.cssText =
         "font-size:12px;color:var(--highlight);margin-bottom:4px";
-      presetsSection.appendChild(presetsTitle);
-
-      const presetsGrid = document.createElement("div");
-      presetsGrid.className = "insert-grid";
-      for (let pi = 0; pi < this._presets.length; pi++) {
-        const p = this._presets[pi];
-        const btn = document.createElement("button");
-        btn.className = "insert-btn";
-        btn.textContent = "⭐ " + p.name;
-        btn.title = p.tagName + (p.class.length ? "." + p.class.join(".") : "");
-        btn.addEventListener("click", (e) => {
+      pt.textContent = "⭐ Presets";
+      ps.appendChild(pt);
+      const pg = document.createElement("div");
+      pg.className = "insert-grid";
+      for (const p of this._presets) {
+        const b = document.createElement("button");
+        b.className = "insert-btn";
+        b.textContent = "⭐ " + p.name;
+        b.title = p.tagName + (p.class.length ? "." + p.class.join(".") : "");
+        b.addEventListener("click", (e) => {
           e.stopPropagation();
           this._insertPreset(p, page);
         });
-        presetsGrid.appendChild(btn);
+        pg.appendChild(b);
       }
-      presetsSection.appendChild(presetsGrid);
-      container.appendChild(presetsSection);
+      ps.appendChild(pg);
+      container.appendChild(ps);
     }
-
-    // Groups of elements
     const groups = [
       {
         title: "📝 Text & Links",
@@ -1745,26 +1826,25 @@ class App {
           {
             label: "🔤 Span",
             tag: "span",
-            modal: (tag) => {
-              const text = prompt("Text content:", "Text");
-              if (text) tag.textContent = text;
-              return !!text;
+            modal: (t) => {
+              const v = prompt("Text:", "Text");
+              if (v === null) return false;
+              t.textContent = v;
+              return true;
             },
           },
           {
             label: "🔗 Link",
             tag: "a",
-            modal: (tag) => {
-              const href = prompt("Href:", "#");
-              if (!href) return false;
-              tag.attrs.href = href;
-              tag.textContent = prompt("Link text:", "Link") || "Link";
+            modal: (t) => {
+              const h = prompt("Href:", "#");
+              if (h === null) return false;
+              t.attrs.href = h;
+              t.textContent = prompt("Link text:", "Link") || "Link";
               return true;
             },
           },
           { label: "¶ Paragraph", tag: "p", defaultContent: "Paragraph text" },
-          { label: "📋 Inline Code", tag: "code", defaultContent: "code" },
-          { label: "🏷️ Label", tag: "label", defaultContent: "Label" },
         ],
       },
       {
@@ -1774,8 +1854,6 @@ class App {
           { label: "H2", tag: "h2", defaultContent: "Heading 2" },
           { label: "H3", tag: "h3", defaultContent: "Heading 3" },
           { label: "H4", tag: "h4", defaultContent: "Heading 4" },
-          { label: "H5", tag: "h5", defaultContent: "Heading 5" },
-          { label: "H6", tag: "h6", defaultContent: "Heading 6" },
         ],
       },
       {
@@ -1784,78 +1862,53 @@ class App {
           {
             label: "🖼️ Image",
             tag: "img",
-            modal: (tag) => {
-              tag.attrs.src =
-                prompt("Image URL:", "https://via.placeholder.com/150") ||
-                "https://via.placeholder.com/150";
-              tag.attrs.alt = prompt("Alt text:", "Image") || "Image";
+            modal: (t) => {
+              t.attrs.src = prompt("URL:", "") || "";
+              t.attrs.alt = prompt("Alt:", "") || "";
               return true;
             },
           },
           { label: "🎬 Video", tag: "video", attrs: { controls: "" } },
           { label: "🎵 Audio", tag: "audio", attrs: { controls: "" } },
           {
-            label: "🖼️ Figure",
-            tag: "figure",
-            children: [
-              new Tag({
-                tagName: "img",
-                attrs: { src: "https://via.placeholder.com/150", alt: "" },
-              }),
-            ],
-          },
-          {
             label: "📺 Iframe",
             tag: "iframe",
-            modal: (tag) => {
-              tag.attrs.src =
-                prompt("Source URL:", "about:blank") || "about:blank";
+            modal: (t) => {
+              t.attrs.src = prompt("URL:", "about:blank") || "about:blank";
               return true;
             },
           },
         ],
       },
       {
-        title: "📋 Lists & Dividers",
+        title: "📋 Lists",
         items: [
           {
-            label: "📋 List (ul)",
+            label: "📋 UL",
             tag: "ul",
-            modal: (tag) => {
-              const items = prompt(
-                "List items (comma-separated):",
-                "Item 1, Item 2",
-              );
-              if (items) {
-                for (const item of items
+            modal: (t) => {
+              const v = prompt("Items (comma):", "Item 1, Item 2");
+              if (v) {
+                for (const s of v
                   .split(",")
                   .map((s) => s.trim())
-                  .filter(Boolean)) {
-                  tag.children.push(
-                    new Tag({ tagName: "li", textContent: item }),
-                  );
-                }
+                  .filter(Boolean))
+                  t.children.push(new Tag({ tagName: "li", textContent: s }));
               }
               return true;
             },
           },
           {
-            label: "🔢 List (ol)",
+            label: "🔢 OL",
             tag: "ol",
-            modal: (tag) => {
-              const items = prompt(
-                "List items (comma-separated):",
-                "Item 1, Item 2",
-              );
-              if (items) {
-                for (const item of items
+            modal: (t) => {
+              const v = prompt("Items (comma):", "Item 1, Item 2");
+              if (v) {
+                for (const s of v
                   .split(",")
                   .map((s) => s.trim())
-                  .filter(Boolean)) {
-                  tag.children.push(
-                    new Tag({ tagName: "li", textContent: item }),
-                  );
-                }
+                  .filter(Boolean))
+                  t.children.push(new Tag({ tagName: "li", textContent: s }));
               }
               return true;
             },
@@ -1869,44 +1922,21 @@ class App {
         items: [
           { label: "📝 Form", tag: "form", attrs: { action: "#" } },
           { label: "🔘 Button", tag: "button", defaultContent: "Button" },
-          {
-            label: "✏️ Input",
-            tag: "input",
-            modal: (tag) => {
-              const typeInput = prompt(
-                "Input type (text/number/email/password/checkbox/radio/color/date/file):",
-                "text",
-              );
-              if (!typeInput) return false;
-              tag.attrs.type = typeInput.toLowerCase();
-              if (typeInput !== "checkbox" && typeInput !== "radio") {
-                tag.attrs.placeholder =
-                  prompt("Placeholder:", "Enter...") || "Enter...";
-              }
-              if (typeInput === "checkbox" || typeInput === "radio") {
-                if (confirm("Checked?")) tag.attrs.checked = "";
-              }
-              return true;
-            },
-          },
-          { label: "📄 Textarea", tag: "textarea", defaultContent: "" },
+          { label: "✏️ Input", tag: "input", attrs: { type: "text" } },
+          { label: "📄 Textarea", tag: "textarea" },
           {
             label: "📋 Select",
             tag: "select",
-            modal: (tag) => {
-              const opts = prompt(
-                "Options (comma-separated):",
-                "Option 1, Option 2",
-              );
-              if (opts) {
-                for (const opt of opts
+            modal: (t) => {
+              const v = prompt("Options:", "Option 1, Option 2");
+              if (v) {
+                for (const s of v
                   .split(",")
                   .map((s) => s.trim())
-                  .filter(Boolean)) {
-                  tag.children.push(
-                    new Tag({ tagName: "option", textContent: opt }),
+                  .filter(Boolean))
+                  t.children.push(
+                    new Tag({ tagName: "option", textContent: s }),
                   );
-                }
               }
               return true;
             },
@@ -1914,10 +1944,10 @@ class App {
         ],
       },
       {
-        title: "📦 Layout Blocks",
+        title: "📦 Layout",
         items: [
           { label: "📦 Div", tag: "div" },
-          { label: "🧭 Nav", tag: "nav", defaultContent: "Navigation" },
+          { label: "🧭 Nav", tag: "nav", defaultContent: "Nav" },
           { label: "📐 Section", tag: "section", defaultContent: "Section" },
           { label: "📰 Article", tag: "article", defaultContent: "Article" },
           { label: "📎 Aside", tag: "aside", defaultContent: "Aside" },
@@ -1936,14 +1966,14 @@ class App {
           {
             label: "🧩 Flex",
             tag: "div",
-            styles: ["display: flex"],
-            defaultContent: "Flex container",
+            styles: ["display:flex"],
+            defaultContent: "Flex",
           },
           {
             label: "🔲 Grid",
             tag: "div",
-            styles: ["display: grid", "grid-template-columns: 1fr 1fr"],
-            defaultContent: "Grid container",
+            styles: ["display:grid", "grid-template-columns: 1fr 1fr"],
+            defaultContent: "Grid",
           },
         ],
       },
@@ -1970,66 +2000,54 @@ class App {
             attrs: { value: "50", max: "100" },
           },
           { label: "📝 Mark", tag: "mark", defaultContent: "Highlighted" },
-          { label: "⏱️ Time", tag: "time", defaultContent: "2024-01-01" },
-          {
-            label: "💬 Dialog",
-            tag: "dialog",
-            defaultContent: "Dialog content",
-          },
+          { label: "⏱️ Time", tag: "time", defaultContent: "2024" },
         ],
       },
     ];
-
-    for (const group of groups) {
-      const section = document.createElement("div");
-      section.className = "insert-section";
-      const title = document.createElement("h3");
-      title.textContent = group.title;
-      title.style.cssText =
-        "font-size:12px;color:var(--accent);margin:6px 0 4px";
-      section.appendChild(title);
-
-      const grid = document.createElement("div");
-      grid.className = "insert-grid";
-
-      for (const item of group.items) {
-        const btn = document.createElement("button");
-        btn.className = "insert-btn";
-        btn.textContent = item.label;
-        btn.title = item.tag;
-        btn.addEventListener("click", (e) => {
+    for (const g of groups) {
+      const s = document.createElement("div");
+      s.className = "insert-section";
+      const t = document.createElement("h3");
+      t.style.cssText = "font-size:12px;color:var(--accent);margin:6px 0 4px";
+      t.textContent = g.title;
+      s.appendChild(t);
+      const gr = document.createElement("div");
+      gr.className = "insert-grid";
+      for (const it of g.items) {
+        const b = document.createElement("button");
+        b.className = "insert-btn";
+        b.textContent = it.label;
+        b.title = it.tag;
+        b.addEventListener("click", (e) => {
           e.stopPropagation();
           const tag = new Tag({
-            tagName: item.tag,
-            textContent: item.defaultContent || "",
-            attrs: item.attrs || {},
-            styles: item.styles || [],
-            children: item.children || [],
+            tagName: it.tag,
+            textContent: it.defaultContent || "",
+            attrs: it.attrs ? { ...it.attrs } : {},
+            styles: it.styles ? [...it.styles] : [],
+            children: it.children
+              ? it.children.map((c) => Tag.fromJSON(c.toJSON()))
+              : [],
           });
-
-          // If modal constructor exists, show it
-          if (item.modal) {
-            if (!item.modal(tag)) return;
+          if (it.modal) {
+            if (!it.modal(tag)) return;
           }
-
+          this._saveSnapshot();
           if (this.selectedTagUid) {
-            const selectedTag = page.findTagByUid(this.selectedTagUid);
-            if (selectedTag) selectedTag.children.push(tag);
-          } else {
-            page.body.push(tag);
-          }
+            const st = page.findTagByUid(this.selectedTagUid);
+            if (st) st.children.push(tag);
+          } else page.body.push(tag);
           this.markDirty();
           this.renderPreview();
-          // Focus: select the new element
           this.selectedTagUid = tag._uid;
           this.showElementEditor = true;
           this.currentPageTab = "element";
           this.refreshUI();
         });
-        grid.appendChild(btn);
+        gr.appendChild(b);
       }
-      section.appendChild(grid);
-      container.appendChild(section);
+      s.appendChild(gr);
+      container.appendChild(s);
     }
   }
 
@@ -2042,12 +2060,11 @@ class App {
       styles: p.styles || [],
       children: (p.children || []).map((c) => ({ ...c, _uid: undefined })),
     });
+    this._saveSnapshot();
     if (this.selectedTagUid) {
-      const selectedTag = page.findTagByUid(this.selectedTagUid);
-      if (selectedTag) selectedTag.children.push(tag);
-    } else {
-      page.body.push(tag);
-    }
+      const st = page.findTagByUid(this.selectedTagUid);
+      if (st) st.children.push(tag);
+    } else page.body.push(tag);
     this.markDirty();
     this.renderPreview();
     this.selectedTagUid = tag._uid;
@@ -2057,7 +2074,6 @@ class App {
   }
 
   // ==================== ELEMENT EDITOR ====================
-
   _renderElementEditor(container) {
     if (!this.currentPage || !this.selectedTagUid) {
       this.showElementEditor = false;
@@ -2081,62 +2097,86 @@ class App {
     container.innerHTML = "";
     const editor = document.createElement("div");
     editor.className = "element-editor";
+    const bs = document.createElement("div");
+    bs.className = "editor-section";
 
-    // Basic Info
-    const basicSection = document.createElement("div");
-    basicSection.className = "editor-section";
-
-    basicSection.appendChild(
-      this._createFormGroup(
+    bs.appendChild(
+      this._fg(
         window.i18n.t("element.tagName"),
         "text",
         tag.tagName,
-        (val) => {
-          tag.tagName = val.toLowerCase();
+        (v) => {
+          this._saveSnapshot();
+          tag.tagName = v.toLowerCase();
           this.markDirty();
           this.renderPreview();
-          this._updateTreeOnly();
-        },
-        { small: true },
-      ),
-    );
-    basicSection.appendChild(
-      this._createFormGroup(
-        window.i18n.t("element.textContent"),
-        "text",
-        tag.textContent,
-        (val) => {
-          tag.textContent = val;
-          this.markDirty();
-          this.renderPreview();
-        },
-        { small: true },
-      ),
-    );
-    basicSection.appendChild(
-      this._createFormGroup(
-        window.i18n.t("element.id"),
-        "text",
-        tag.id,
-        (val) => {
-          tag.id = val;
-          this.markDirty();
-          this.renderPreview();
-          this._updateTreeOnly();
         },
         { small: true },
       ),
     );
 
-    // Pseudo-state selector
-    const pseudoGroup = document.createElement("div");
-    pseudoGroup.className = "form-group form-group-small";
-    const pseudoLabel = document.createElement("label");
-    pseudoLabel.className = "form-label";
-    pseudoLabel.textContent = "Pseudo-state";
-    pseudoGroup.appendChild(pseudoLabel);
-    const pseudoSelect = document.createElement("select");
-    pseudoSelect.className = "input input-small";
+    // Text content: textarea + no-escape checkbox
+    const tcGroup = document.createElement("div");
+    tcGroup.className = "form-group form-group-small";
+    const tcLabel = document.createElement("label");
+    tcLabel.className = "form-label";
+    tcLabel.textContent = window.i18n.t("element.textContent");
+    tcGroup.appendChild(tcLabel);
+    const ta = document.createElement("textarea");
+    ta.className = "input";
+    ta.style.cssText =
+      "width:100%;min-height:40px;resize:vertical;font-size:11px";
+    ta.value = tag.textContent;
+    ta.addEventListener("input", () => {
+      tag.textContent = ta.value;
+      this.markDirty();
+      this.renderPreview();
+    });
+    tcGroup.appendChild(ta);
+    const rawRow = document.createElement("div");
+    rawRow.style.cssText =
+      "display:flex;align-items:center;gap:6px;margin-top:2px";
+    const rawChk = document.createElement("input");
+    rawChk.type = "checkbox";
+    rawChk.id = "raw-html-chk";
+    rawChk.checked = tag.rawHtml;
+    rawChk.addEventListener("change", () => {
+      tag.rawHtml = rawChk.checked;
+      this.markDirty();
+      this.renderPreview();
+    });
+    rawRow.appendChild(rawChk);
+    const rawLbl = document.createElement("label");
+    rawLbl.htmlFor = "raw-html-chk";
+    rawLbl.textContent = "Don't escape HTML";
+    rawLbl.style.cssText = "font-size:11px;color:var(--text-muted)";
+    rawRow.appendChild(rawLbl);
+    tcGroup.appendChild(rawRow);
+    bs.appendChild(tcGroup);
+
+    bs.appendChild(
+      this._fg(
+        window.i18n.t("element.id"),
+        "text",
+        tag.id,
+        (v) => {
+          tag.id = v;
+          this.markDirty();
+          this.renderPreview();
+        },
+        { small: true },
+      ),
+    );
+
+    // Pseudo-state
+    const pG = document.createElement("div");
+    pG.className = "form-group form-group-small";
+    const pL = document.createElement("label");
+    pL.className = "form-label";
+    pL.textContent = "Pseudo-state";
+    pG.appendChild(pL);
+    const pS = document.createElement("select");
+    pS.className = "input input-small";
     [
       "",
       ":hover",
@@ -2149,195 +2189,185 @@ class App {
       ":nth-child(odd)",
       ":nth-child(even)",
     ].forEach((p) => {
-      const opt = document.createElement("option");
-      opt.value = p;
-      opt.textContent = p || "(none)";
-      if (p === this.pseudoState) opt.selected = true;
-      pseudoSelect.appendChild(opt);
+      const o = document.createElement("option");
+      o.value = p;
+      o.textContent = p || "(none)";
+      if (p === this.pseudoState) o.selected = true;
+      pS.appendChild(o);
     });
-    pseudoSelect.addEventListener("change", () => {
-      this.pseudoState = pseudoSelect.value;
+    pS.addEventListener("change", () => {
+      this.pseudoState = pS.value;
       this.markDirty();
     });
-    pseudoGroup.appendChild(pseudoSelect);
-    basicSection.appendChild(pseudoGroup);
+    pG.appendChild(pS);
+    bs.appendChild(pG);
 
-    // Classes
-    const classGroup = document.createElement("div");
-    classGroup.className = "form-group";
-    const classLabel = document.createElement("label");
-    classLabel.className = "form-label";
-    classLabel.textContent = window.i18n.t("element.classes");
-    classGroup.appendChild(classLabel);
-    const classNameRow = document.createElement("div");
-    classNameRow.className = "form-row";
-    const classInput = document.createElement("input");
-    classInput.type = "text";
-    classInput.className = "input input-small";
-    classInput.placeholder = "class name";
-    classNameRow.appendChild(classInput);
-    const addClassBtn = document.createElement("button");
-    addClassBtn.className = "btn btn-small";
-    addClassBtn.textContent = "+";
-    addClassBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const v = classInput.value.trim();
-      if (v && !tag.class.includes(v)) {
-        tag.class.push(v);
-        this.markDirty();
-        this.renderPreview();
-        this._renderElementEditorSub(container, tag);
-      }
-      classInput.value = "";
-    });
-    classInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") addClassBtn.click();
-    });
-    classNameRow.appendChild(addClassBtn);
-    classGroup.appendChild(classNameRow);
-    if (tag.class.length > 0) {
-      const chips = document.createElement("div");
-      chips.className = "chip-list";
-      for (let i = 0; i < tag.class.length; i++) {
-        const chip = document.createElement("span");
-        chip.className = "chip";
-        chip.textContent = tag.class[i] + " ✕";
-        chip.addEventListener("click", (e) => {
-          e.stopPropagation();
-          tag.class.splice(i, 1);
-          this.markDirty();
-          this.renderPreview();
-          this._renderElementEditorSub(container, tag);
-        });
-        chips.appendChild(chip);
-      }
-      classGroup.appendChild(chips);
-    }
-    basicSection.appendChild(classGroup);
-    editor.appendChild(basicSection);
-
-    // Save as preset button
-    const presetBtn = document.createElement("button");
-    presetBtn.className = "btn btn-small";
-    presetBtn.textContent = "💾 Save as Preset";
-    presetBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this._saveAsPreset(tag);
-    });
-    editor.appendChild(presetBtn);
-
-    // Attributes (collapsible)
-    editor.appendChild(
-      this._createCollapsibleSection(
-        window.i18n.t("element.attributes"),
-        true,
-        () => this._renderAttributesContent(tag),
-      ),
-    );
-
-    // Styles (collapsible)
-    editor.appendChild(
-      this._createCollapsibleSection(
-        window.i18n.t("element.styles"),
-        true,
-        () => this._renderStylesContent(tag),
-      ),
-    );
-
-    // Children at bottom + Add/Delete child
-    const childrenSection = document.createElement("div");
-    childrenSection.className = "editor-actions";
-    childrenSection.style.cssText =
-      "display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 0";
-
-    const addChildBtn = document.createElement("button");
-    addChildBtn.className = "btn btn-primary btn-small";
-    addChildBtn.textContent = "+ " + window.i18n.t("element.addChild");
-    addChildBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this._showAddChildModal(tag);
-    });
-    childrenSection.appendChild(addChildBtn);
-
-    const delElBtn = document.createElement("button");
-    delElBtn.className = "btn btn-danger btn-small";
-    delElBtn.textContent = window.i18n.t("element.delete");
-    delElBtn.addEventListener("click", (e) => {
+    // Delete & Duplicate after classes
+    const actionRow = document.createElement("div");
+    actionRow.style.cssText = "display:flex;gap:6px;margin-top:4px";
+    const delElBtn2 = document.createElement("button");
+    delElBtn2.className = "btn btn-danger btn-small";
+    delElBtn2.textContent = window.i18n.t("element.delete");
+    delElBtn2.addEventListener("click", (e) => {
       e.stopPropagation();
       this._deleteSelectedElement();
     });
-    childrenSection.appendChild(delElBtn);
-
-    const dupBtn = document.createElement("button");
-    dupBtn.className = "btn btn-small";
-    dupBtn.textContent = window.i18n.t("element.duplicate");
-    dupBtn.addEventListener("click", (e) => {
+    actionRow.appendChild(delElBtn2);
+    const dupBtn2 = document.createElement("button");
+    dupBtn2.className = "btn btn-small";
+    dupBtn2.textContent = window.i18n.t("element.duplicate");
+    dupBtn2.addEventListener("click", (e) => {
       e.stopPropagation();
+      this._saveSnapshot();
       const c = tag.duplicate();
       this._insertAfterTag(tag._uid, c);
       this.markDirty();
       this.renderPreview();
       this.refreshUI();
     });
-    childrenSection.appendChild(dupBtn);
+    actionRow.appendChild(dupBtn2);
+    bs.appendChild(actionRow);
 
-    editor.appendChild(childrenSection);
-
-    // Children mini-tree at the very bottom
-    if (tag.children.length > 0) {
-      const childTreeSection = document.createElement("div");
-      childTreeSection.className = "element-children-tree";
-      const childTitle = document.createElement("div");
-      childTitle.className = "element-children-title";
-      childTitle.textContent =
-        window.i18n.t("element.children") + " (" + tag.children.length + ")";
-      childTreeSection.appendChild(childTitle);
-      const childTree = document.createElement("div");
-      childTree.className = "body-tree compact";
-      childTree.style.marginTop = "2px";
-      for (let ci = 0; ci < tag.children.length; ci++) {
-        this._renderTagTreeNode(
-          tag.children[ci],
-          childTree,
-          0,
-          tag.children,
-          ci,
-          this.currentPage,
-          true,
-          true,
-        );
+    // Classes
+    const cg = document.createElement("div");
+    cg.className = "form-group";
+    const cl = document.createElement("label");
+    cl.className = "form-label";
+    cl.textContent = window.i18n.t("element.classes");
+    cg.appendChild(cl);
+    const cr = document.createElement("div");
+    cr.className = "form-row";
+    const ci = document.createElement("input");
+    ci.type = "text";
+    ci.className = "input input-small";
+    ci.placeholder = "class name";
+    cr.appendChild(ci);
+    const ac = document.createElement("button");
+    ac.className = "btn btn-small";
+    ac.textContent = "+";
+    ac.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const v = ci.value.trim();
+      if (v && !tag.class.includes(v)) {
+        this._saveSnapshot();
+        tag.class.push(v);
+        this.markDirty();
+        this.renderPreview();
+        this._renderElementEditorSub(container, tag);
       }
-      childTreeSection.appendChild(childTree);
-      editor.appendChild(childTreeSection);
+      ci.value = "";
+    });
+    ci.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") ac.click();
+    });
+    cr.appendChild(ac);
+    cg.appendChild(cr);
+    if (tag.class.length > 0) {
+      const cs = document.createElement("div");
+      cs.className = "chip-list";
+      for (let i = 0; i < tag.class.length; i++) {
+        const ch = document.createElement("span");
+        ch.className = "chip";
+        ch.textContent = tag.class[i] + " ✕";
+        ch.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this._saveSnapshot();
+          tag.class.splice(i, 1);
+          this.markDirty();
+          this.renderPreview();
+          this._renderElementEditorSub(container, tag);
+        });
+        cs.appendChild(ch);
+      }
+      cg.appendChild(cs);
     }
+    bs.appendChild(cg);
+    editor.appendChild(bs);
 
+    const pb = document.createElement("button");
+    pb.className = "btn btn-small";
+    pb.textContent = "💾 Save as Preset";
+    pb.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._saveAsPreset(tag);
+    });
+    editor.appendChild(pb);
+
+    // Styles FIRST, then attributes
+    editor.appendChild(
+      this._collapsible(window.i18n.t("element.styles"), true, () =>
+        this._renderStylesContent(tag),
+      ),
+    );
+    editor.appendChild(
+      this._collapsible(window.i18n.t("element.attributes"), true, () =>
+        this._renderAttrContent(tag),
+      ),
+    );
+
+    // Children actions at bottom
+    const cs2 = document.createElement("div");
+    cs2.style.cssText =
+      "display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 0";
+    const acb = document.createElement("button");
+    acb.className = "btn btn-primary btn-small";
+    acb.textContent = "+ " + window.i18n.t("element.addChild");
+    acb.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._showAddChildModal(tag, false);
+      // Re-render element editor to update children tree
+      setTimeout(() => {
+        if (this.selectedTagUid)
+          this._renderElementEditorSub(
+            container,
+            this.currentPage.findTagByUid(this.selectedTagUid),
+          );
+      }, 100);
+    });
+    cs2.appendChild(acb);
+    editor.appendChild(cs2);
+
+    // Children tree
+    const cts = document.createElement("div");
+    cts.className = "element-children-tree";
+    const ctl = document.createElement("div");
+    ctl.className = "element-children-title";
+    ctl.textContent =
+      window.i18n.t("element.children") + " (" + tag.children.length + ")";
+    cts.appendChild(ctl);
+    const ct2 = document.createElement("div");
+    ct2.style.marginTop = "2px";
+    for (let ci = 0; ci < tag.children.length; ci++)
+      this._renderTreeNode(
+        tag.children[ci],
+        ct2,
+        0,
+        tag.children,
+        ci,
+        this.currentPage,
+        true,
+        true,
+      );
+    cts.appendChild(ct2);
+    editor.appendChild(cts);
     container.appendChild(editor);
   }
 
-  _updateTreeOnly() {
-    if (this.currentView === "page") {
-      const prevTab = this.currentPageTab;
-      this._renderPageTabs();
-      this.currentPageTab = prevTab;
-    }
-  }
-
   // ==================== ATTRIBUTES ====================
-
-  _renderAttributesContent(tag) {
-    const container = document.createElement("div");
-    for (const [key, value] of Object.entries(tag.attrs)) {
-      const row = document.createElement("div");
-      row.className = "attr-row";
+  _renderAttrContent(tag) {
+    const c = document.createElement("div");
+    for (const [k, v] of Object.entries(tag.attrs)) {
+      const r = document.createElement("div");
+      r.className = "attr-row";
       const ki = document.createElement("input");
       ki.type = "text";
       ki.className = "input input-small";
-      ki.value = key;
+      ki.value = k;
       ki.addEventListener("input", () => {
         const nk = ki.value.trim();
-        if (nk && nk !== key) {
-          tag.attrs[nk] = value;
-          delete tag.attrs[key];
+        if (nk && nk !== k) {
+          tag.attrs[nk] = v;
+          delete tag.attrs[k];
           this.markDirty();
           this.renderPreview();
         }
@@ -2345,9 +2375,9 @@ class App {
       const vi = document.createElement("input");
       vi.type = "text";
       vi.className = "input input-small";
-      vi.value = value;
+      vi.value = v;
       vi.addEventListener("input", () => {
-        tag.attrs[ki.value.trim() || key] = vi.value;
+        tag.attrs[ki.value.trim() || k] = vi.value;
         this.markDirty();
         this.renderPreview();
       });
@@ -2356,19 +2386,18 @@ class App {
       db.textContent = "✕";
       db.addEventListener("click", (e) => {
         e.stopPropagation();
-        delete tag.attrs[key];
+        delete tag.attrs[k];
         this.markDirty();
         this.renderPreview();
-        row.remove();
+        r.remove();
       });
-      row.appendChild(ki);
-      row.appendChild(vi);
-      row.appendChild(db);
-      container.appendChild(row);
+      r.appendChild(ki);
+      r.appendChild(vi);
+      r.appendChild(db);
+      c.appendChild(r);
     }
-    // Add new
-    const addRow = document.createElement("div");
-    addRow.className = "attr-row add-attr";
+    const ar = document.createElement("div");
+    ar.className = "attr-row add-attr";
     const nki = document.createElement("input");
     nki.type = "text";
     nki.className = "input input-small";
@@ -2387,10 +2416,7 @@ class App {
         tag.attrs[k] = nvi.value;
         this.markDirty();
         this.renderPreview();
-        addRow.parentElement.insertBefore(
-          this._createAttrRow(tag, k, nvi.value),
-          addRow,
-        );
+        ar.parentElement.insertBefore(this._attrRow(tag, k, nvi.value), ar);
         nki.value = "";
         nvi.value = "";
         nki.focus();
@@ -2402,16 +2428,16 @@ class App {
     nvi.addEventListener("keydown", (e) => {
       if (e.key === "Enter") ab.click();
     });
-    addRow.appendChild(nki);
-    addRow.appendChild(nvi);
-    addRow.appendChild(ab);
-    container.appendChild(addRow);
-    return container;
+    ar.appendChild(nki);
+    ar.appendChild(nvi);
+    ar.appendChild(ab);
+    c.appendChild(ar);
+    return c;
   }
 
-  _createAttrRow(tag, key, value) {
-    const row = document.createElement("div");
-    row.className = "attr-row";
+  _attrRow(tag, key, value) {
+    const r = document.createElement("div");
+    r.className = "attr-row";
     const ki = document.createElement("input");
     ki.type = "text";
     ki.className = "input input-small";
@@ -2442,66 +2468,27 @@ class App {
       delete tag.attrs[key];
       this.markDirty();
       this.renderPreview();
-      row.remove();
+      r.remove();
     });
-    row.appendChild(ki);
-    row.appendChild(vi);
-    row.appendChild(db);
-    return row;
+    r.appendChild(ki);
+    r.appendChild(vi);
+    r.appendChild(db);
+    return r;
   }
 
   // ==================== STYLES ====================
-
   _renderStylesContent(tag) {
-    const container = document.createElement("div");
-    container.className = "styles-editor";
-    const subTabs = document.createElement("div");
-    subTabs.className = "sub-tabs";
-    const tabs = ["visual", "layout", "spacing", "position", "advanced"];
-    const cur = this._currentStyleTab || "visual";
-
-    for (const st of tabs) {
-      const btn = document.createElement("button");
-      btn.className = `sub-tab ${st === cur ? "active" : ""}`;
-      btn.textContent = window.i18n.t(`element.${st}`);
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._currentStyleTab = st;
-        subTabs
-          .querySelectorAll(".sub-tab")
-          .forEach((t) => t.classList.remove("active"));
-        btn.classList.add("active");
-        const tc = container.querySelector(".style-tab-content");
-        if (tc) {
-          tc.innerHTML = "";
-          tc.appendChild(this._renderStyleSubTab(tag, st));
-        }
-      });
-      subTabs.appendChild(btn);
-    }
-    container.appendChild(subTabs);
-    const tabContent = document.createElement("div");
-    tabContent.className = "style-tab-content";
-    tabContent.appendChild(this._renderStyleSubTab(tag, cur));
-    container.appendChild(tabContent);
-    return container;
-  }
-
-  _renderStyleSubTab(tag, subTab) {
-    switch (subTab) {
-      case "visual":
-        return this._renderVisualStyles(tag);
-      case "layout":
-        return this._renderLayoutStyles(tag);
-      case "spacing":
-        return this._renderSpacingStyles(tag);
-      case "position":
-        return this._renderPositionStyles(tag);
-      case "advanced":
-        return this._renderAdvancedStyles(tag);
-      default:
-        return document.createElement("div");
-    }
+    const c = document.createElement("div");
+    c.className = "styles-editor";
+    // Show all style tabs at once
+    const allContent = document.createElement("div");
+    allContent.appendChild(this._renderVisualStyles(tag));
+    allContent.appendChild(this._renderLayoutStyles(tag));
+    allContent.appendChild(this._renderSpacingStyles(tag));
+    allContent.appendChild(this._renderPositionStyles(tag));
+    allContent.appendChild(this._renderAdvancedStyles(tag));
+    c.appendChild(allContent);
+    return c;
   }
 
   _renderVisualStyles(tag) {
@@ -2552,7 +2539,7 @@ class App {
         step: 0.1,
       },
     ];
-    for (const i of items) c.appendChild(this._createStyleGroup(tag, i));
+    for (const i of items) c.appendChild(this._sg(tag, i));
     return c;
   }
 
@@ -2560,7 +2547,7 @@ class App {
     const c = document.createElement("div");
     c.className = "style-form";
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._sg(tag, {
         k: "display",
         l: window.i18n.t("style.display"),
         t: "select",
@@ -2613,7 +2600,7 @@ class App {
         },
         { k: "gap", l: window.i18n.t("style.gap"), t: "text" },
       ])
-        c.appendChild(this._createStyleGroup(tag, p));
+        c.appendChild(this._sg(tag, p));
     }
     if (d === "grid" || d === "inline-grid") {
       for (const p of [
@@ -2641,7 +2628,7 @@ class App {
           o: ["start", "end", "center", "stretch"],
         },
       ])
-        c.appendChild(this._createStyleGroup(tag, p));
+        c.appendChild(this._sg(tag, p));
     }
     return c;
   }
@@ -2649,140 +2636,14 @@ class App {
   _renderSpacingStyles(tag) {
     const c = document.createElement("div");
     c.className = "style-form";
-
-    // Visual margin/padding layout
-    const boxModel = document.createElement("div");
-    boxModel.className = "box-model";
-
-    // Margin
-    const marginLabel = document.createElement("label");
-    marginLabel.className = "style-section-label";
-    marginLabel.textContent = window.i18n.t("style.margin");
-    c.appendChild(marginLabel);
-
-    const marginGrid = document.createElement("div");
-    marginGrid.className = "box-model-grid";
-    // top row
-    const mTop = this._createSmallInput(tag, "margin-top", "↑");
-    // middle row: left, center, right
-    const mLeft = this._createSmallInput(tag, "margin-left", "←");
-    const mCenter = document.createElement("div");
-    mCenter.className = "box-model-center";
-    mCenter.textContent = "M";
-    const mRight = this._createSmallInput(tag, "margin-right", "→");
-    // bottom row
-    const mBottom = this._createSmallInput(tag, "margin-bottom", "↓");
-
-    marginGrid.appendChild(mTop);
-    marginGrid.appendChild(document.createElement("div"));
-    marginGrid.appendChild(document.createElement("div"));
-    marginGrid.appendChild(document.createElement("div"));
-    marginGrid.appendChild(mLeft);
-    marginGrid.appendChild(mCenter);
-    marginGrid.appendChild(mRight);
-    marginGrid.appendChild(document.createElement("div"));
-    marginGrid.appendChild(mBottom);
-    marginGrid.appendChild(document.createElement("div"));
-    marginGrid.appendChild(document.createElement("div"));
-    marginGrid.appendChild(document.createElement("div"));
-
-    c.appendChild(marginGrid);
-
-    // Also add all-margin shortcut
-    const allMarginRow = document.createElement("div");
-    allMarginRow.className = "form-row";
-    const allMInput = document.createElement("input");
-    allMInput.type = "text";
-    allMInput.className = "input input-small";
-    allMInput.value = tag.getStyle("margin");
-    allMInput.placeholder = "margin all";
-    allMInput.addEventListener("change", () => {
-      tag.setStyle("margin", allMInput.value, tag.getStyleImportant("margin"));
-      this.markDirty();
-      this.renderPreview();
-    });
-    const allMLabel = document.createElement("label");
-    allMLabel.className = "checkbox-label";
-    const mChk = document.createElement("input");
-    mChk.type = "checkbox";
-    mChk.checked = tag.getStyleImportant("margin");
-    mChk.addEventListener("change", () => {
-      tag.setStyle("margin", tag.getStyle("margin"), mChk.checked);
-      this.markDirty();
-      this.renderPreview();
-    });
-    allMLabel.appendChild(mChk);
-    allMLabel.appendChild(document.createTextNode("!"));
-    allMarginRow.appendChild(allMInput);
-    allMarginRow.appendChild(allMLabel);
-    c.appendChild(allMarginRow);
-
-    // Padding
-    const paddingLabel = document.createElement("label");
-    paddingLabel.className = "style-section-label";
-    paddingLabel.textContent = window.i18n.t("style.padding");
-    c.appendChild(paddingLabel);
-
-    const padGrid = document.createElement("div");
-    padGrid.className = "box-model-grid";
-    const pTop = this._createSmallInput(tag, "padding-top", "↑");
-    const pLeft = this._createSmallInput(tag, "padding-left", "←");
-    const pCenter = document.createElement("div");
-    pCenter.className = "box-model-center";
-    pCenter.textContent = "P";
-    const pRight = this._createSmallInput(tag, "padding-right", "→");
-    const pBottom = this._createSmallInput(tag, "padding-bottom", "↓");
-
-    padGrid.appendChild(pTop);
-    padGrid.appendChild(document.createElement("div"));
-    padGrid.appendChild(document.createElement("div"));
-    padGrid.appendChild(document.createElement("div"));
-    padGrid.appendChild(pLeft);
-    padGrid.appendChild(pCenter);
-    padGrid.appendChild(pRight);
-    padGrid.appendChild(document.createElement("div"));
-    padGrid.appendChild(pBottom);
-    padGrid.appendChild(document.createElement("div"));
-    padGrid.appendChild(document.createElement("div"));
-    padGrid.appendChild(document.createElement("div"));
-
-    c.appendChild(padGrid);
-
-    const allPadRow = document.createElement("div");
-    allPadRow.className = "form-row";
-    const allPInput = document.createElement("input");
-    allPInput.type = "text";
-    allPInput.className = "input input-small";
-    allPInput.value = tag.getStyle("padding");
-    allPInput.placeholder = "padding all";
-    allPInput.addEventListener("change", () => {
-      tag.setStyle(
-        "padding",
-        allPInput.value,
-        tag.getStyleImportant("padding"),
-      );
-      this.markDirty();
-      this.renderPreview();
-    });
-    const allPLabel = document.createElement("label");
-    allPLabel.className = "checkbox-label";
-    const pChk = document.createElement("input");
-    pChk.type = "checkbox";
-    pChk.checked = tag.getStyleImportant("padding");
-    pChk.addEventListener("change", () => {
-      tag.setStyle("padding", tag.getStyle("padding"), pChk.checked);
-      this.markDirty();
-      this.renderPreview();
-    });
-    allPLabel.appendChild(pChk);
-    allPLabel.appendChild(document.createTextNode("!"));
-    allPadRow.appendChild(allPInput);
-    allPadRow.appendChild(allPLabel);
-    c.appendChild(allPadRow);
-
-    // box-sizing, width, height, overflow
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._modelSection(tag, "margin", window.i18n.t("style.margin"), "M"),
+    );
+    c.appendChild(
+      this._modelSection(tag, "padding", window.i18n.t("style.padding"), "P"),
+    );
+    c.appendChild(
+      this._sg(tag, {
         k: "box-sizing",
         l: window.i18n.t("style.boxSizing"),
         t: "select",
@@ -2790,21 +2651,27 @@ class App {
       }),
     );
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._sg(tag, {
         k: "width",
         l: window.i18n.t("style.width"),
-        t: "text",
+        t: "range",
+        min: 0,
+        max: 2000,
+        step: 10,
       }),
     );
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._sg(tag, {
         k: "height",
         l: window.i18n.t("style.height"),
-        t: "text",
+        t: "range",
+        min: 0,
+        max: 2000,
+        step: 10,
       }),
     );
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._sg(tag, {
         k: "overflow",
         l: window.i18n.t("style.overflow"),
         t: "select",
@@ -2814,27 +2681,54 @@ class App {
     return c;
   }
 
-  _createSmallInput(tag, key, placeholder) {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "input input-small";
-    input.style.cssText =
-      "width:100%;text-align:center;font-size:10px;padding:2px";
-    input.value = tag.getStyle(key);
-    input.placeholder = placeholder;
-    input.addEventListener("change", () => {
-      tag.setStyle(key, input.value, tag.getStyleImportant(key));
-      this.markDirty();
-      this.renderPreview();
-    });
-    return input;
+  _modelSection(tag, prefix, label, letter) {
+    const c = document.createElement("div");
+    const lbl = document.createElement("label");
+    lbl.className = "style-section-label";
+    lbl.textContent = label;
+    c.appendChild(lbl);
+    const grid = document.createElement("div");
+    grid.className = "box-model-grid";
+    const sides = ["top", "left", "center", "right", "bottom"];
+    for (const side of sides) {
+      if (side === "center") {
+        const div = document.createElement("div");
+        div.className = "box-model-center";
+        div.textContent = letter;
+        grid.appendChild(div);
+      } else {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "input input-small";
+        inp.style.cssText =
+          "width:100%;text-align:center;font-size:10px;padding:2px";
+        inp.value = tag.getStyle(prefix + "-" + side);
+        inp.placeholder = { top: "↑", left: "←", right: "→", bottom: "↓" }[
+          side
+        ];
+        inp.addEventListener("change", () => {
+          tag.setStyle(
+            prefix + "-" + side,
+            inp.value,
+            tag.getStyleImportant(prefix + "-" + side),
+          );
+          this.markDirty();
+          this.renderPreview();
+        });
+        grid.appendChild(inp);
+      }
+    }
+    // Fill remaining cells for grid layout (3x4)
+    for (let i = 0; i < 7; i++) grid.appendChild(document.createElement("div"));
+    c.appendChild(grid);
+    return c;
   }
 
   _renderPositionStyles(tag) {
     const c = document.createElement("div");
     c.className = "style-form";
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._sg(tag, {
         k: "position",
         l: window.i18n.t("style.position"),
         t: "select",
@@ -2850,10 +2744,10 @@ class App {
         { k: "bottom", l: window.i18n.t("style.bottom"), t: "text" },
         { k: "z-index", l: "Z-Index", t: "number" },
       ])
-        c.appendChild(this._createStyleGroup(tag, p));
+        c.appendChild(this._sg(tag, p));
     }
     c.appendChild(
-      this._createStyleGroup(tag, {
+      this._sg(tag, {
         k: "box-shadow",
         l: window.i18n.t("style.boxShadow"),
         t: "text",
@@ -2870,8 +2764,8 @@ class App {
     lbl.textContent = "CSS Rules";
     c.appendChild(lbl);
     for (let i = 0; i < tag.styles.length; i++) {
-      const row = document.createElement("div");
-      row.className = "advanced-style-row";
+      const r = document.createElement("div");
+      r.className = "advanced-style-row";
       const inp = document.createElement("input");
       inp.type = "text";
       inp.className = "input input-small";
@@ -2882,8 +2776,8 @@ class App {
         this.markDirty();
         this.renderPreview();
       });
-      const impLabel = document.createElement("label");
-      impLabel.className = "checkbox-label";
+      const il = document.createElement("label");
+      il.className = "checkbox-label";
       const chk = document.createElement("input");
       chk.type = "checkbox";
       chk.checked = tag.styles[i].includes("!important");
@@ -2895,8 +2789,8 @@ class App {
         this.markDirty();
         this.renderPreview();
       });
-      impLabel.appendChild(chk);
-      impLabel.appendChild(document.createTextNode("!"));
+      il.appendChild(chk);
+      il.appendChild(document.createTextNode("!"));
       const db = document.createElement("button");
       db.className = "btn btn-danger btn-small";
       db.textContent = "✕";
@@ -2911,13 +2805,13 @@ class App {
           p.appendChild(this._renderAdvancedStyles(tag));
         }
       });
-      row.appendChild(inp);
-      row.appendChild(impLabel);
-      row.appendChild(db);
-      c.appendChild(row);
+      r.appendChild(inp);
+      r.appendChild(il);
+      r.appendChild(db);
+      c.appendChild(r);
     }
-    const addRow = document.createElement("div");
-    addRow.className = "advanced-style-row";
+    const ar = document.createElement("div");
+    ar.className = "advanced-style-row";
     const ni = document.createElement("input");
     ni.type = "text";
     ni.className = "input input-small";
@@ -2943,26 +2837,24 @@ class App {
     ni.addEventListener("keydown", (e) => {
       if (e.key === "Enter") ab.click();
     });
-    addRow.appendChild(ni);
-    addRow.appendChild(ab);
-    c.appendChild(addRow);
+    ar.appendChild(ni);
+    ar.appendChild(ab);
+    c.appendChild(ar);
     return c;
   }
 
-  // ==================== STYLE GROUP HELPER ====================
-
-  _createStyleGroup(tag, config) {
-    const group = document.createElement("div");
-    group.className = `form-group ${config.small ? "form-group-small" : ""}`;
-    const label = document.createElement("label");
-    label.className = "form-label";
-    label.textContent = config.l || config.label;
-    group.appendChild(label);
-    const row = document.createElement("div");
-    row.className = "form-row";
+  // ==================== STYLE GROUP ====================
+  _sg(tag, config) {
+    const g = document.createElement("div");
+    g.className = `form-group ${config.small ? "form-group-small" : ""}`;
+    const lb = document.createElement("label");
+    lb.className = "form-label";
+    lb.textContent = config.l || config.label;
+    g.appendChild(lb);
+    const r = document.createElement("div");
+    r.className = "form-row";
     const cv = tag.getStyle(config.k);
     const imp = tag.getStyleImportant(config.k);
-
     let input;
     if (config.t === "select") {
       input = document.createElement("select");
@@ -2972,15 +2864,15 @@ class App {
       eo.textContent = "(none)";
       input.appendChild(eo);
       for (const o of config.o || []) {
-        const opt = document.createElement("option");
-        opt.value = o;
-        opt.textContent = o;
-        if (o === cv) opt.selected = true;
-        input.appendChild(opt);
+        const op = document.createElement("option");
+        op.value = o;
+        op.textContent = o;
+        if (o === cv) op.selected = true;
+        input.appendChild(op);
       }
     } else if (config.t === "color" && config.sp) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "color-style-row";
+      const wr = document.createElement("div");
+      wr.className = "color-style-row";
       input = document.createElement("input");
       input.type = "color";
       input.className = "color-input";
@@ -3001,9 +2893,9 @@ class App {
         this.markDirty();
         this.renderPreview();
       });
-      wrapper.appendChild(input);
-      wrapper.appendChild(ti);
-      row.appendChild(wrapper);
+      wr.appendChild(input);
+      wr.appendChild(ti);
+      r.appendChild(wr);
     } else if (config.t === "number") {
       input = document.createElement("input");
       input.type = "number";
@@ -3017,6 +2909,37 @@ class App {
         this.markDirty();
         this.renderPreview();
       });
+    } else if (config.t === "range") {
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = "display:flex;gap:4px;align-items:center;flex:1";
+      input = document.createElement("input");
+      input.type = "range";
+      input.style.cssText = "flex:1;height:4px";
+      const numVal = parseFloat(cv) || 0;
+      input.value = numVal;
+      if (config.min !== undefined) input.min = config.min;
+      if (config.max !== undefined) input.max = config.max;
+      if (config.step !== undefined) input.step = config.step;
+      const textInput = document.createElement("input");
+      textInput.type = "text";
+      textInput.className = "input input-small";
+      textInput.style.width = "60px";
+      textInput.value = cv;
+      const update = (v) => {
+        tag.setStyle(config.k, v, imp);
+        this.markDirty();
+        this.renderPreview();
+      };
+      input.addEventListener("input", () => {
+        textInput.value = input.value;
+        update(input.value + "px");
+      });
+      textInput.addEventListener("change", () => {
+        update(textInput.value);
+      });
+      wrapper.appendChild(input);
+      wrapper.appendChild(textInput);
+      r.appendChild(wrapper);
     } else {
       input = document.createElement("input");
       input.type = "text";
@@ -3029,9 +2952,7 @@ class App {
         this.renderPreview();
       });
     }
-
-    if (input) row.appendChild(input);
-
+    if (input) r.appendChild(input);
     const il = document.createElement("label");
     il.className = "checkbox-label";
     const chk = document.createElement("input");
@@ -3045,18 +2966,206 @@ class App {
     });
     il.appendChild(chk);
     il.appendChild(document.createTextNode("!"));
-    row.appendChild(il);
-    group.appendChild(row);
-    return group;
+    r.appendChild(il);
+    g.appendChild(r);
+    return g;
+  }
+
+  // ==================== EDITOR MOUSE ====================
+  onEditorMouseDown(e) {
+    if (this.activeTool === "move" && this.selectedTagUid) {
+      const el = this.els.editorContent.querySelector(
+        `[data-uid="${this.selectedTagUid}"]`,
+      );
+      if (el && el.contains(e.target)) {
+        this._isResizing = true;
+        const tag = this.currentPage.findTagByUid(this.selectedTagUid);
+        if (tag && tag.getStyle("position") !== "absolute") {
+          tag.setStyle("position", "absolute");
+          const rect = el.getBoundingClientRect();
+          const parentRect = this.els.editorContent.getBoundingClientRect();
+          tag.setStyle("top", rect.top - parentRect.top + "px");
+          tag.setStyle("left", rect.left - parentRect.left + "px");
+          this.renderPreview();
+        }
+        this._resizeStart = { x: e.clientX, y: e.clientY, tag };
+        this.els.editorArea.style.cursor = "grabbing";
+        return;
+      }
+    }
+    // Visual resize: look for resize handles on selected element
+    if (
+      this.selectedTagUid &&
+      (this.activeTool === "cursor" || this.activeTool === "move")
+    ) {
+      const target = e.target.closest("[data-uid]");
+      if (target && target.dataset.uid === this.selectedTagUid) {
+        const rect = target.getBoundingClientRect();
+        const edge = 8;
+        const onRight = e.clientX > rect.right - edge;
+        const onBottom = e.clientY > rect.bottom - edge;
+        if (onRight || onBottom) {
+          this._isResizing = true;
+          this._resizeStart = {
+            x: e.clientX,
+            y: e.clientY,
+            tag: this.currentPage.findTagByUid(this.selectedTagUid),
+            w: target.offsetWidth,
+            h: target.offsetHeight,
+            right: onRight,
+            bottom: onBottom,
+          };
+          e.preventDefault();
+        }
+      }
+    }
+  }
+
+  onEditorMouseMove(e) {
+    this.handleEditorHover(e);
+    if (this._isResizing && this._resizeStart) {
+      const rs = this._resizeStart;
+      if (rs.tag) {
+        if (rs.right !== undefined) {
+          // Visual resize
+          const dx = e.clientX - rs.x;
+          const dy = e.clientY - rs.y;
+          if (rs.right)
+            rs.tag.setStyle("width", Math.max(20, rs.w + dx) + "px");
+          if (rs.bottom)
+            rs.tag.setStyle("height", Math.max(20, rs.h + dy) + "px");
+          this.markDirty();
+          this.renderPreview();
+          this.highlightSelectedElement();
+        } else {
+          // Move tool
+          const dx = e.clientX - rs.x;
+          const dy = e.clientY - rs.y;
+          const top = parseFloat(rs.tag.getStyle("top") || "0");
+          const left = parseFloat(rs.tag.getStyle("left") || "0");
+          rs.tag.setStyle("top", top + dy + "px");
+          rs.tag.setStyle("left", left + dx + "px");
+          this._resizeStart.x = e.clientX;
+          this._resizeStart.y = e.clientY;
+          this.markDirty();
+          this.renderPreview();
+          this.highlightSelectedElement();
+        }
+      }
+      return;
+    }
+    // Update resize cursor
+    if (this.selectedTagUid && this.els.editorContent) {
+      const el = this.els.editorContent.querySelector(
+        `[data-uid="${this.selectedTagUid}"]`,
+      );
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const edge = 8;
+        const onRight = e.clientX > rect.right - edge;
+        const onBottom = e.clientY > rect.bottom - edge;
+        if (onRight && onBottom) this.els.editorArea.style.cursor = "se-resize";
+        else if (onRight) this.els.editorArea.style.cursor = "e-resize";
+        else if (onBottom) this.els.editorArea.style.cursor = "s-resize";
+        else
+          this.els.editorArea.style.cursor =
+            this.activeTool === "move"
+              ? "grab"
+              : this.activeTool === "select"
+                ? "crosshair"
+                : "default";
+      }
+    }
+  }
+
+  onEditorMouseUp(e) {
+    if (this._isResizing) {
+      this._isResizing = false;
+      this._resizeStart = null;
+      this._saveSnapshot();
+      if (this.activeTool === "move") this.els.editorArea.style.cursor = "grab";
+    }
+  }
+
+  // ==================== CONTEXT MENU ====================
+  onContextMenu(e) {
+    e.preventDefault();
+    const target = e.target.closest("[data-uid]");
+    if (!target || target === this.els.editorContent) return;
+    this._contextTagUid = target.dataset.uid;
+
+    const menu = this.els.contextMenu;
+    menu.innerHTML = "";
+    menu.style.left = e.clientX + "px";
+    menu.style.top = e.clientY + "px";
+    menu.classList.remove("hidden");
+
+    const addChild = document.createElement("button");
+    addChild.className = "ctx-item";
+    addChild.textContent = "+ Add Child";
+    addChild.addEventListener("click", () => {
+      const tag = this.currentPage.findTagByUid(this._contextTagUid);
+      if (tag) this._showAddChildModal(tag, false);
+      this.hideContextMenu();
+    });
+    menu.appendChild(addChild);
+
+    const edit = document.createElement("button");
+    edit.className = "ctx-item";
+    edit.textContent = "✏️ Edit";
+    edit.addEventListener("click", () => {
+      this.selectedTagUid = this._contextTagUid;
+      this.showElementEditor = true;
+      this.currentPageTab = "element";
+      this.hideContextMenu();
+      this.refreshUI();
+      this.renderPreview();
+    });
+    menu.appendChild(edit);
+
+    const duplicate = document.createElement("button");
+    duplicate.className = "ctx-item";
+    duplicate.textContent = "⧉ Duplicate";
+    duplicate.addEventListener("click", () => {
+      const page = this.currentPage;
+      const tag = this.currentPage.findTagByUid(this._contextTagUid);
+      if (tag) {
+        this._saveSnapshot();
+        const c = tag.duplicate();
+        this._insertAfterTag(this._contextTagUid, c);
+        this.markDirty();
+        this.renderPreview();
+        this.refreshUI();
+      }
+      this.hideContextMenu();
+    });
+    menu.appendChild(duplicate);
+
+    const del = document.createElement("button");
+    del.className = "ctx-item ctx-danger";
+    del.textContent = "✕ Delete";
+    del.addEventListener("click", () => {
+      this.selectedTagUid = this._contextTagUid;
+      this._deleteSelectedElement();
+      this.hideContextMenu();
+    });
+    menu.appendChild(del);
+
+    // Position menu within viewport
+    const mr = menu.getBoundingClientRect();
+    if (mr.right > window.innerWidth)
+      menu.style.left = window.innerWidth - mr.width - 10 + "px";
+    if (mr.bottom > window.innerHeight)
+      menu.style.top = window.innerHeight - mr.height - 10 + "px";
   }
 
   // ==================== DELETE / INSERT HELPERS ====================
-
   _deleteSelectedElement() {
     if (!this.selectedTagUid || !this.currentPage) return;
     const page = this.currentPage;
     for (let i = 0; i < page.body.length; i++) {
       if (page.body[i]._uid === this.selectedTagUid) {
+        this._saveSnapshot();
         page.body.splice(i, 1);
         this.selectedTagUid = null;
         this.showElementEditor = false;
@@ -3066,6 +3175,7 @@ class App {
         return;
       }
       if (this._deleteFromTree(page.body[i], this.selectedTagUid)) {
+        this._saveSnapshot();
         this.selectedTagUid = null;
         this.showElementEditor = false;
         this.markDirty();
@@ -3075,21 +3185,19 @@ class App {
       }
     }
   }
-
-  _deleteFromTree(parent, uid) {
-    for (let i = 0; i < parent.children.length; i++) {
-      if (parent.children[i]._uid === uid) {
-        parent.children.splice(i, 1);
+  _deleteFromTree(p, uid) {
+    for (let i = 0; i < p.children.length; i++) {
+      if (p.children[i]._uid === uid) {
+        p.children.splice(i, 1);
         return true;
       }
-      if (this._deleteFromTree(parent.children[i], uid)) return true;
+      if (this._deleteFromTree(p.children[i], uid)) return true;
     }
     return false;
   }
-
-  _insertAfterTag(uid, newTag) {
+  _insertAfterTag(uid, nt) {
     for (const bt of this.currentPage.body) {
-      if (this._insertAfterTagInTree(bt, uid, newTag)) return;
+      if (this._insertAfterTagInTree(bt, uid, nt)) return;
     }
   }
   _insertAfterTagInTree(p, uid, nt) {
@@ -3103,10 +3211,38 @@ class App {
     return false;
   }
 
-  // ==================== PREVIEW ====================
+  // ==================== PRESETS ====================
+  _loadPresets() {
+    try {
+      return JSON.parse(localStorage.getItem("html_editor_presets") || "[]");
+    } catch {
+      return [];
+    }
+  }
+  _savePresets() {
+    localStorage.setItem("html_editor_presets", JSON.stringify(this._presets));
+  }
+  _saveAsPreset(tag) {
+    const name = prompt(
+      "Preset name:",
+      `${tag.tagName}${tag.class.length ? "." + tag.class.join(".") : ""}`,
+    );
+    if (!name) return;
+    this._presets.push({
+      name,
+      tagName: tag.tagName,
+      textContent: tag.textContent,
+      attrs: { ...tag.attrs },
+      class: [...tag.class],
+      styles: [...tag.styles],
+      children: tag.children.map((c) => c.toJSON()),
+    });
+    this._savePresets();
+    this.setStatus(`Preset "${name}" saved`);
+  }
 
+  // ==================== PREVIEW ====================
   renderPreview() {
-    // Get fresh reference each time
     const container = document.getElementById("editor-content");
     if (!container) {
       this.setStatus("Preview container not found");
@@ -3124,8 +3260,12 @@ class App {
   }
 
   highlightSelectedElement() {
-    if (!this.els.editorContent || !this.els.editorArea) return;
-    if (this.selectedTagUid && !this.viewMode) {
+    if (!this.els.editorContent || !this.els.editorArea || this.viewMode) {
+      if (this.els.selectedHighlight)
+        this.els.selectedHighlight.style.display = "none";
+      return;
+    }
+    if (this.selectedTagUid) {
       const el = this.els.editorContent.querySelector(
         `[data-uid="${this.selectedTagUid}"]`,
       );
@@ -3137,27 +3277,38 @@ class App {
         this.els.selectedHighlight.style.top = `${rect.top - er.top - 2}px`;
         this.els.selectedHighlight.style.width = `${rect.width + 4}px`;
         this.els.selectedHighlight.style.height = `${rect.height + 4}px`;
+        // Show resize handles on selected element
+        if (this.els.resizeHighlight) {
+          this.els.resizeHighlight.style.display = "block";
+          this.els.resizeHighlight.style.left = `${rect.right - er.left - 12}px`;
+          this.els.resizeHighlight.style.top = `${rect.bottom - er.top - 12}px`;
+        }
       } else {
         this.els.selectedHighlight.style.display = "none";
       }
     } else {
       this.els.selectedHighlight.style.display = "none";
+      if (this.els.resizeHighlight)
+        this.els.resizeHighlight.classList.add("hidden");
     }
   }
 
-  // ==================== EDITOR INTERACTION ====================
-
+  // ==================== EDITOR HOVER/CLICK ====================
   handleEditorHover(e) {
+    if (this._isResizing) return;
     if (this.activeTool !== "select" || this.viewMode) {
       this.els.hoverHighlight.style.display = "none";
       return;
     }
     const target = e.target.closest("[data-uid]");
-    if (!target || target === this.els.editorContent) {
+    if (
+      !target ||
+      target === this.els.editorContent ||
+      (target.closest("#body") === null && target !== this.els.editorContent)
+    ) {
       this.els.hoverHighlight.style.display = "none";
       return;
     }
-    this._hoveredUid = target.dataset.uid;
     const rect = target.getBoundingClientRect();
     const er = this.els.editorArea.getBoundingClientRect();
     this.els.hoverHighlight.style.display = "block";
@@ -3180,49 +3331,47 @@ class App {
   }
 
   // ==================== UI HELPERS ====================
-
-  _rerender(container, renderFn) {
-    container.innerHTML = "";
-    renderFn(container);
+  _rerender(c, fn) {
+    c.innerHTML = "";
+    fn(c);
+  }
+  _tab(id, label, active) {
+    const t = document.createElement("button");
+    t.className = `tab ${active ? "active" : ""}`;
+    t.dataset.tab = id;
+    t.textContent = label;
+    return t;
   }
 
-  _createTab(id, label, active) {
-    const tab = document.createElement("button");
-    tab.className = `tab ${active ? "active" : ""}`;
-    tab.dataset.tab = id;
-    tab.textContent = label;
-    return tab;
-  }
-
-  _createFormGroup(label, type, value, onChange, opts = {}) {
-    const group = document.createElement("div");
-    group.className = `form-group ${opts.small ? "form-group-small" : ""}`;
-    const lbl = document.createElement("label");
-    lbl.className = "form-label";
-    lbl.textContent = label;
-    group.appendChild(lbl);
-    const inp = document.createElement("input");
-    inp.type = type;
-    inp.className = "input";
-    inp.value = value || "";
-    inp.addEventListener("change", () => onChange(inp.value));
-    inp.addEventListener("input", () => {
-      if (type === "text" || type === "number") onChange(inp.value);
+  _fg(label, type, value, onChange, opts = {}) {
+    const g = document.createElement("div");
+    g.className = `form-group ${opts.small ? "form-group-small" : ""}`;
+    const l = document.createElement("label");
+    l.className = "form-label";
+    l.textContent = label;
+    g.appendChild(l);
+    const i = document.createElement("input");
+    i.type = type;
+    i.className = "input";
+    i.value = value || "";
+    i.addEventListener("change", () => onChange(i.value));
+    i.addEventListener("input", () => {
+      if (type === "text" || type === "number") onChange(i.value);
     });
-    group.appendChild(inp);
-    return group;
+    g.appendChild(i);
+    return g;
   }
 
-  _createCollapsibleSection(title, startOpen, contentRenderer) {
-    const section = document.createElement("div");
-    section.className = "collapsible-section";
-    const header = document.createElement("div");
-    header.className = "collapsible-header";
-    header.innerHTML = `<span class="collapse-icon">${startOpen ? "▼" : "▶"}</span> ${title}`;
-    header.addEventListener("click", (e) => {
+  _collapsible(title, startOpen, renderFn) {
+    const s = document.createElement("div");
+    s.className = "collapsible-section";
+    const h = document.createElement("div");
+    h.className = "collapsible-header";
+    h.innerHTML = `<span class="collapse-icon">${startOpen ? "▼" : "▶"}</span> ${title}`;
+    h.addEventListener("click", (e) => {
       e.stopPropagation();
-      const c = section.querySelector(".collapsible-content");
-      const ic = header.querySelector(".collapse-icon");
+      const c = s.querySelector(".collapsible-content");
+      const ic = h.querySelector(".collapse-icon");
       if (c.style.display === "none") {
         c.style.display = "block";
         ic.textContent = "▼";
@@ -3231,18 +3380,20 @@ class App {
         ic.textContent = "▶";
       }
     });
-    section.appendChild(header);
-    const content = document.createElement("div");
-    content.className = "collapsible-content";
-    content.style.display = startOpen ? "block" : "none";
-    const inner = contentRenderer();
-    if (inner) content.appendChild(inner);
-    section.appendChild(content);
-    return section;
+    s.appendChild(h);
+    const c = document.createElement("div");
+    c.className = "collapsible-content";
+    c.style.display = startOpen ? "block" : "none";
+    const inner = renderFn();
+    if (inner) c.appendChild(inner);
+    s.appendChild(c);
+    return s;
   }
 
-  // ==================== MODAL ====================
-
+  _showModalContent(html) {
+    this.els.modalContent.innerHTML = html;
+    this.els.modalOverlay.classList.remove("hidden");
+  }
   showModal(html) {
     this.els.modalContent.innerHTML = html;
     this.els.modalOverlay.classList.remove("hidden");
@@ -3250,8 +3401,6 @@ class App {
   closeModal() {
     this.els.modalOverlay.classList.add("hidden");
   }
-
-  // ==================== REFRESH ====================
 
   refreshUI() {
     if (!this.currentProject && this.currentView !== "projects") {

@@ -7,11 +7,11 @@
 
 class Meta {
   constructor(data = {}) {
-    this.name = data.name || '';
-    this.content = data.content || '';
-    this.httpEquiv = data.httpEquiv || '';
-    this.charset = data.charset || '';
-    this.property = data.property || '';
+    this.name = data.name || "";
+    this.content = data.content || "";
+    this.httpEquiv = data.httpEquiv || "";
+    this.charset = data.charset || "";
+    this.property = data.property || "";
   }
 
   toJSON() {
@@ -35,21 +35,21 @@ class Meta {
     if (this.content) attrs.push(`content="${this.content}"`);
     if (this.httpEquiv) attrs.push(`http-equiv="${this.httpEquiv}"`);
     if (this.property) attrs.push(`property="${this.property}"`);
-    if (attrs.length === 0) return '';
-    return `<meta ${attrs.join(' ')}>`;
+    if (attrs.length === 0) return "";
+    return `<meta ${attrs.join(" ")}>`;
   }
 }
 
 class Link {
   constructor(data = {}) {
-    this.href = data.href || '';
-    this.rel = data.rel || '';
-    this.type = data.type || '';
-    this.hreflang = data.hreflang || '';
-    this.media = data.media || '';
-    this.integrity = data.integrity || '';
-    this.crossorigin = data.crossorigin || '';
-    this.as = data.as || '';
+    this.href = data.href || "";
+    this.rel = data.rel || "";
+    this.type = data.type || "";
+    this.hreflang = data.hreflang || "";
+    this.media = data.media || "";
+    this.integrity = data.integrity || "";
+    this.crossorigin = data.crossorigin || "";
+    this.as = data.as || "";
   }
 
   toJSON() {
@@ -70,7 +70,7 @@ class Link {
   }
 
   toHtml() {
-    const parts = ['<link'];
+    const parts = ["<link"];
     if (this.href) parts.push(`href="${this.href}"`);
     if (this.rel) parts.push(`rel="${this.rel}"`);
     if (this.type) parts.push(`type="${this.type}"`);
@@ -79,22 +79,22 @@ class Link {
     if (this.integrity) parts.push(`integrity="${this.integrity}"`);
     if (this.crossorigin) parts.push(`crossorigin="${this.crossorigin}"`);
     if (this.as) parts.push(`as="${this.as}"`);
-    parts.push('>');
-    return parts.join(' ');
+    parts.push(">");
+    return parts.join(" ");
   }
 }
 
 class Favicon {
   constructor(data = {}) {
-    this.href = data.href || '';
-    this.rel = data.rel || 'icon';
-    this.type = data.type || '';
-    this.sizes = data.sizes || '';
+    this.href = data.href || "";
+    this.rel = data.rel || "icon";
+    this.type = data.type || "";
+    this.sizes = data.sizes || "";
   }
 
   toJSON() {
     const obj = { href: this.href };
-    if (this.rel !== 'icon') obj.rel = this.rel;
+    if (this.rel !== "icon") obj.rel = this.rel;
     if (this.type) obj.type = this.type;
     if (this.sizes) obj.sizes = this.sizes;
     return obj;
@@ -105,28 +105,34 @@ class Favicon {
   }
 
   toHtml() {
-    const parts = ['<link'];
+    const parts = ["<link"];
     parts.push(`rel="${this.rel}"`);
     if (this.href) parts.push(`href="${this.href}"`);
     if (this.type) parts.push(`type="${this.type}"`);
     if (this.sizes) parts.push(`sizes="${this.sizes}"`);
-    parts.push('>');
-    return parts.join(' ');
+    parts.push(">");
+    return parts.join(" ");
   }
 }
 
 class Head {
   constructor(data = {}) {
-    this.meta = (data.meta || []).map(m => m instanceof Meta ? m : Meta.fromJSON(m));
-    this.link = (data.link || []).map(l => l instanceof Link ? l : Link.fromJSON(l));
-    this.favicons = (data.favicons || []).map(f => f instanceof Favicon ? f : Favicon.fromJSON(f));
+    this.meta = (data.meta || []).map((m) =>
+      m instanceof Meta ? m : Meta.fromJSON(m),
+    );
+    this.link = (data.link || []).map((l) =>
+      l instanceof Link ? l : Link.fromJSON(l),
+    );
+    this.favicons = (data.favicons || []).map((f) =>
+      f instanceof Favicon ? f : Favicon.fromJSON(f),
+    );
   }
 
   toJSON() {
     return {
-      meta: this.meta.map(m => m.toJSON()),
-      link: this.link.map(l => l.toJSON()),
-      favicons: this.favicons.map(f => f.toJSON())
+      meta: this.meta.map((m) => m.toJSON()),
+      link: this.link.map((l) => l.toJSON()),
+      favicons: this.favicons.map((f) => f.toJSON()),
     };
   }
 
@@ -134,7 +140,7 @@ class Head {
     return new Head(data);
   }
 
-  toHtml(indent = '    ') {
+  toHtml(indent = "    ") {
     const parts = [];
     for (const m of this.meta) {
       const h = m.toHtml();
@@ -146,7 +152,7 @@ class Head {
     for (const f of this.favicons) {
       parts.push(indent + f.toHtml());
     }
-    return parts.join('\n');
+    return parts.join("\n");
   }
 }
 
@@ -154,14 +160,16 @@ class Head {
 
 class Palette {
   constructor(data = {}) {
-    this.name = data.name || 'Untitled Palette';
-    this.colors = (data.colors || []).map(c => Array.isArray(c) ? c : [c.name || '', c.value || '#000000']);
+    this.name = data.name || "Untitled Palette";
+    this.colors = (data.colors || []).map((c) =>
+      Array.isArray(c) ? c : [c.name || "", c.value || "#000000"],
+    );
   }
 
   toJSON() {
     return {
       name: this.name,
-      colors: this.colors.map(c => [c[0], c[1]])
+      colors: this.colors.map((c) => [c[0], c[1]]),
     };
   }
 
@@ -174,14 +182,14 @@ class Palette {
 
 class StyleSet {
   constructor(data = {}) {
-    this.selector = data.selector || '';
+    this.selector = data.selector || "";
     this.styles = data.styles || [];
   }
 
   toJSON() {
     return {
       selector: this.selector,
-      styles: [...this.styles]
+      styles: [...this.styles],
     };
   }
 
@@ -190,18 +198,18 @@ class StyleSet {
   }
 
   toCss() {
-    if (!this.selector || this.styles.length === 0) return '';
-    const rules = this.styles.map(s => {
-      if (s.endsWith(';')) return s;
+    if (!this.selector || this.styles.length === 0) return "";
+    const rules = this.styles.map((s) => {
+      if (s.endsWith(";")) return s;
       const match = s.match(/^(.+?):\s*(.+)/);
       if (match) {
-        const val = match[2].replace(/!important\s*$/, '').trim();
-        const important = match[2].includes('!important');
-        return `${match[1]}: ${val}${important ? ' !important' : ''};`;
+        const val = match[2].replace(/!important\s*$/, "").trim();
+        const important = match[2].includes("!important");
+        return `${match[1]}: ${val}${important ? " !important" : ""};`;
       }
-      return s + ';';
+      return s + ";";
     });
-    return `${this.selector} {\n  ${rules.join('\n  ')}\n}`;
+    return `${this.selector} {\n  ${rules.join("\n  ")}\n}`;
   }
 }
 
@@ -212,13 +220,16 @@ let _tagCounter = 0;
 class Tag {
   constructor(data = {}) {
     this._uid = data._uid || `tag_${++_tagCounter}_${Date.now()}`;
-    this.tagName = (data.tagName || 'div').toLowerCase();
+    this.tagName = (data.tagName || "div").toLowerCase();
     this.styles = data.styles || [];
-    this.id = data.id || '';
+    this.id = data.id || "";
     this.class = data.class || [];
-    this.textContent = data.textContent || '';
+    this.textContent = data.textContent || "";
+    this.rawHtml = data.rawHtml || false;
     this.attrs = data.attrs || {};
-    this.children = (data.children || []).map(c => c instanceof Tag ? c : Tag.fromJSON(c));
+    this.children = (data.children || []).map((c) =>
+      c instanceof Tag ? c : Tag.fromJSON(c),
+    );
   }
 
   toJSON() {
@@ -229,8 +240,9 @@ class Tag {
       id: this.id,
       class: [...this.class],
       textContent: this.textContent,
+      rawHtml: this.rawHtml,
       attrs: { ...this.attrs },
-      children: this.children.map(c => c.toJSON())
+      children: this.children.map((c) => c.toJSON()),
     };
   }
 
@@ -243,19 +255,21 @@ class Tag {
     for (const s of this.styles) {
       if (s.startsWith(prefix)) {
         const val = s.slice(prefix.length).trim();
-        return val.replace(/\s*!important\s*$/, '').trim();
+        return val.replace(/\s*!important\s*$/, "").trim();
       }
     }
-    return '';
+    return "";
   }
 
   setStyle(key, value, important = false) {
     const prefix = `${key}:`;
-    const existing = this.styles.findIndex(s => {
-      const trimmed = s.replace(/\s*!important\s*$/, '').trim();
+    const existing = this.styles.findIndex((s) => {
+      const trimmed = s.replace(/\s*!important\s*$/, "").trim();
       return trimmed.startsWith(prefix);
     });
-    const newStyle = value ? `${key}: ${value}${important ? ' !important' : ''}` : '';
+    const newStyle = value
+      ? `${key}: ${value}${important ? " !important" : ""}`
+      : "";
     if (existing >= 0) {
       if (newStyle) {
         this.styles[existing] = newStyle;
@@ -269,8 +283,8 @@ class Tag {
 
   removeStyle(key) {
     const prefix = `${key}:`;
-    this.styles = this.styles.filter(s => {
-      const trimmed = s.replace(/\s*!important\s*$/, '').trim();
+    this.styles = this.styles.filter((s) => {
+      const trimmed = s.replace(/\s*!important\s*$/, "").trim();
       return !trimmed.startsWith(prefix);
     });
   }
@@ -278,7 +292,7 @@ class Tag {
   getStyleImportant(key) {
     const prefix = `${key}:`;
     for (const s of this.styles) {
-      if (s.startsWith(prefix) && s.includes('!important')) {
+      if (s.startsWith(prefix) && s.includes("!important")) {
         return true;
       }
     }
@@ -286,9 +300,9 @@ class Tag {
   }
 
   getInlineStyles() {
-    if (this.styles.length === 0) return '';
-    const rules = this.styles.map(s => s.endsWith(';') ? s : s + ';');
-    return rules.join(' ');
+    if (this.styles.length === 0) return "";
+    const rules = this.styles.map((s) => (s.endsWith(";") ? s : s + ";"));
+    return rules.join(" ");
   }
 
   findTagByUid(uid) {
@@ -342,24 +356,31 @@ class Tag {
 
 class Page {
   constructor(data = {}) {
-    this.title = data.title || 'Untitled Page';
-    this.head = data.head instanceof Head ? data.head : new Head(data.head || {});
-    this.body = (data.body || []).map(t => t instanceof Tag ? t : Tag.fromJSON(t));
-    this.palettes = (data.palettes || []).map(p => p instanceof Palette ? p : Palette.fromJSON(p));
-    this.styles = (data.styles || []).map(s => s instanceof StyleSet ? s : StyleSet.fromJSON(s));
-    this.width = data.width || '100%';
-    this.height = data.height || 'auto';
+    this.title = data.title || "Untitled Page";
+    this.head =
+      data.head instanceof Head ? data.head : new Head(data.head || {});
+    this.body = (data.body || []).map((t) =>
+      t instanceof Tag ? t : Tag.fromJSON(t),
+    );
+    this.palettes = (data.palettes || []).map((p) =>
+      p instanceof Palette ? p : Palette.fromJSON(p),
+    );
+    this.styles = (data.styles || []).map((s) =>
+      s instanceof StyleSet ? s : StyleSet.fromJSON(s),
+    );
+    this.width = data.width || "100%";
+    this.height = data.height || "auto";
   }
 
   toJSON() {
     return {
       title: this.title,
       head: this.head.toJSON(),
-      body: this.body.map(t => t.toJSON()),
-      palettes: this.palettes.map(p => p.toJSON()),
-      styles: this.styles.map(s => s.toJSON()),
+      body: this.body.map((t) => t.toJSON()),
+      palettes: this.palettes.map((p) => p.toJSON()),
+      styles: this.styles.map((s) => s.toJSON()),
       width: this.width,
-      height: this.height
+      height: this.height,
     };
   }
 
@@ -388,22 +409,28 @@ class Page {
 
 class Project {
   constructor(data = {}) {
-    this.name = data.name || 'Untitled Project';
-    this.author = data.author || '';
-    this.pages = (data.pages || []).map(p => p instanceof Page ? p : Page.fromJSON(p));
+    this.name = data.name || "Untitled Project";
+    this.author = data.author || "";
+    this.pages = (data.pages || []).map((p) =>
+      p instanceof Page ? p : Page.fromJSON(p),
+    );
     this.createdAt = data.createdAt || Date.now();
     this.editedAt = data.editedAt || Date.now();
-    this._id = data._id || `proj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this._id =
+      data._id ||
+      `proj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this._assets = data._assets || [];
   }
 
   toJSON() {
     return {
       name: this.name,
       author: this.author,
-      pages: this.pages.map(p => p.toJSON()),
+      pages: this.pages.map((p) => p.toJSON()),
       createdAt: this.createdAt,
       editedAt: this.editedAt,
-      _id: this._id
+      _id: this._id,
+      _assets: this._assets,
     };
   }
 
