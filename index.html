@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML Visual Editor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="editor-area" oncontextmenu="return false;">
+      <div id="editor-canvas">
+        <div id="editor-content" class="editor-content"></div>
+        <div id="resize-handle" class="resize-handle"></div>
+      </div>
+      <div id="hover-highlight" class="hover-highlight"></div>
+      <div id="selected-highlight" class="selected-highlight"></div>
+      <div id="resize-highlight" class="resize-highlight hidden"></div>
+      <div id="context-menu" class="context-menu hidden"></div>
+    </div>
+
+    <div id="sidebar" class="sidebar">
+      <div id="sidebar-toolbar" class="sidebar-toolbar">
+        <div class="toolbar-group">
+          <button id="tool-undo" class="tool-btn" title="Undo (Ctrl+Z)">↩</button>
+          <button id="tool-redo" class="tool-btn" title="Redo (Ctrl+Y)">↪</button>
+          <span class="toolbar-separator"></span>
+          <button id="tool-cursor" class="tool-btn active" title="Cursor">🖱</button>
+          <button id="tool-select" class="tool-btn" title="Select Element">🔍</button>
+          <button id="tool-move" class="tool-btn" title="Move Element">✋</button>
+          <button id="tool-clear" class="tool-btn" title="Clear Selection">✕</button>
+          <span class="toolbar-separator"></span>
+          <button id="tool-viewmode" class="tool-btn" title="View Mode">👁</button>
+          <button id="tool-copyhtml" class="tool-btn" title="Copy HTML">📋</button>
+          <button id="tool-export" class="tool-btn" title="Export JSON">💾</button>
+        </div>
+        <span class="toolbar-separator"></span>
+        <div class="toolbar-group">
+          <button id="btn-save" class="tool-btn" title="Save">💿</button>
+          <button id="btn-projects" class="tool-btn" title="Projects">📁</button>
+          <button id="btn-collapse" class="tool-btn" title="Collapse">◀</button>
+        </div>
+      </div>
+
+      <div id="sidebar-tabs" class="sidebar-tabs"></div>
+      <div id="sidebar-content" class="sidebar-content"></div>
+      <div id="status-bar" class="status-bar"></div>
+    </div>
+
+    <div id="sidebar-expand" class="sidebar-expand hidden">▶</div>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div id="modal-content" class="modal-content"></div>
+  </div>
+
+  <input type="file" id="file-input" class="hidden" accept=".json">
+
+  <script src="src/i18n.js"></script>
+  <script src="src/models.js"></script>
+  <script src="src/renderer.js"></script>
+  <script src="src/storage.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
+</title>
