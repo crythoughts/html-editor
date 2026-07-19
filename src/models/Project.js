@@ -1,5 +1,6 @@
 import { Serializable } from './Serializable.js';
 import { registerType } from '../storage.js';
+import { Head } from './Head.js';
 
 /**
  * Project is the top-level entity that groups related pages together.
@@ -12,6 +13,7 @@ import { registerType } from '../storage.js';
  * @property {Page[]}     pages       — ordered list of pages in this project
  * @property {Component[]} components — reusable component templates
  * @property {Palette[]}  palettes    — colour palettes (CSS custom properties)
+ * @property {Head}       head        — shared <head> content (meta & link tags)
  */
 export class Project extends Serializable {
   constructor(name = '', description = '', author = '') {
@@ -24,6 +26,7 @@ export class Project extends Serializable {
     this.pages = [];
     this.components = [];
     this.palettes = [];
+    this.head = new Head();
   }
 
   /** Adds a Page and bumps the edited_at timestamp. */

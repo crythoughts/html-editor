@@ -34,6 +34,9 @@ export class PageExportHtmlView {
 
     const wrapper = document.createElement('div');
 
+    // Apply project head content to wrapper (for HTML export serialisation)
+    project.head.applyTo(wrapper);
+
     // Inject palette CSS variables from enabled palettes
     const cssVars = this._paletteCSS(palettes);
     if (cssVars) {

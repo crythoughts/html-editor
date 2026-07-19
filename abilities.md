@@ -29,6 +29,14 @@ Three domain classes that mirror the structure of an HTML document:
   `Variable`). Stored inside `Project.components`.
 - **`Variable`** — a typed parameter (`src/models/Variable.js`) with `name`,
   `type` (`'str'` or `'int'`), and `default` value.
+- **`Head`** — shared `<head>` content (`src/models/Head.js`) with `meta`
+  (array of `MetaTag`) and `links` (array of `LinkTag`). Applied to every
+  page during rendering (`RenderView` injects into `document.head`;
+  `PageExportHtmlView` serialises them into the export).
+- **`MetaTag`** — a `<meta>` element (`src/models/MetaTag.js`) with a
+  flexible `attrs` dictionary. Provides `toDOM()`.
+- **`LinkTag`** — a `<link>` element (`src/models/LinkTag.js`) with a
+  flexible `attrs` dictionary. Provides `toDOM()`.
 - **`Palette`** — a named collection of colours (`src/models/Palette.js`)
   with an immutable `id` (slug), `name`, `colors` (array of `Color`), and
   `enabled` flag. When enabled, its colours are emitted as CSS custom
@@ -85,6 +93,7 @@ Available routes:
 | `#/project/:pid/palettes`                   | PaletteListView     | List colour palettes                    |
 | `#/project/:pid/palettes/create`            | PaletteCreateView   | Create a new palette                    |
 | `#/project/:pid/palettes/:palId`            | PaletteEditView     | Edit palette name, colours, toggle      |
+| `#/project/:pid/head`                       | HeadView            | Edit shared <head> (meta & link tags)   |
 | `#/project/:pid/components`                 | ComponentListView   | List project components                 |
 | `#/project/:pid/components/create`          | ComponentCreateView | Create a new component                 |
 | `#/project/:pid/components/:cid`            | ComponentDetailView | View component details                 |
@@ -166,6 +175,10 @@ Four plain-DOM views that render into the `#app` mount point:
 - **PaletteEditView** — edit a palette: immutable CSS variable prefix,
   enabled checkbox, name input, colour rows with immutable ID labels and
   colour pickers. Provides **Save**, **Delete palette**, and **Cancel**.
+- **HeadView** — editor for the project's shared `<head>` content. Two
+  sections: **Meta tags** and **Link tags**, each rendered as a list of
+  tags where every tag has dynamic attribute key/value rows with +/-.
+  Provides **Save head** which rebuilds `MetaTag` / `LinkTag` instances.
 - **ComponentListView** — lists all components in a project with links to
   view / edit each.
 - **ComponentCreateView** — form to create a new component with a name,

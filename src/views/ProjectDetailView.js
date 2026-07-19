@@ -107,6 +107,13 @@ const compBtn = document.createElement('button');
     });
     actions.appendChild(palBtn);
 
+    const headBtn = document.createElement('button');
+    headBtn.textContent = 'Head';
+    headBtn.addEventListener('click', () => {
+      this.router.navigate(`/project/${this.projectId}/head`);
+    });
+    actions.appendChild(headBtn);
+
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Back to list';
     editBtn.addEventListener('click', () => {

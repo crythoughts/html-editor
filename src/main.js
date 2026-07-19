@@ -11,6 +11,9 @@ import './models/Variable.js';
 import './models/Component.js';
 import './models/Color.js';
 import './models/Palette.js';
+import './models/MetaTag.js';
+import './models/LinkTag.js';
+import './models/Head.js';
 
 import { Router } from './router.js';
 import { ProjectListView } from './views/ProjectListView.js';
@@ -33,6 +36,7 @@ import { ComponentEditView } from './views/ComponentEditView.js';
 import { PaletteListView } from './views/PaletteListView.js';
 import { PaletteCreateView } from './views/PaletteCreateView.js';
 import { PaletteEditView } from './views/PaletteEditView.js';
+import { HeadView } from './views/HeadView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -115,6 +119,13 @@ router.add('/project/:pid/palettes/create', (params) => {
 
 router.add('/project/:pid/palettes/:palId', (params) => {
   const view = new PaletteEditView(router, params.pid, params.palId);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+// --- Head route ---
+router.add('/project/:pid/head', (params) => {
+  const view = new HeadView(router, params.pid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

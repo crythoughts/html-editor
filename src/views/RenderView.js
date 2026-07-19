@@ -33,6 +33,9 @@ export class RenderView {
 
         document.title = page.title;
 
+        // Apply project head content to document.head
+        project.head.applyTo(document.head);
+
         // Inject palette CSS variables from enabled palettes
         const cssVars = this._paletteCSS(project.palettes);
         if (cssVars) {
