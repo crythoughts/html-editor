@@ -1,4 +1,4 @@
-import { getProjectById, savePage, getPageById } from '../storage.js';
+import { getProjectById, savePage, getPageById, saveProject, restoreInstance } from '../storage.js';
 
 /**
  * PageDetailView — shows page metadata, allows editing the title,
@@ -157,6 +157,35 @@ export class PageDetailView {
       );
     });
     actRow.appendChild(exportHtmlBtn);
+
+    const cloneBtn = document.createElement('button');
+    cloneBtn.textContent = 'Clone page';
+    cloneBtn.addEventListener('click', () => {
+      const project = getProjectById(this.projectId);
+      if (!project) return;
+      // Deep-clone via serialization to get an independent copy
+      const clone = restoreInstance(page.toJSON());
+      clone.title = `${page.title} (copy)`;
+      // Insert after the current page
+      const insertAt = this.pageId + 1;
+      project.pages.splice(insertAt, 0, clone);
+      project.edited_at = Date.now();
+      saveProject(this.projectId, project);
+      this.router.navigate(`/project/${this.projectId}/${insertAt}`);
+    });
+    actRow.appendChild(cloneBtn);
+
+    const deletePageBtn = document.createElement('button');
+    deletePageBtn.textContent = 'Delete page';
+    deletePageBtn.addEventListener('click', () => {
+      const project = getProjectById(this.projectId);
+      if (!project) return;
+      project.pages.splice(this.pageId, 1);
+      project.edited_at = Date.now();
+      saveProject(this.projectId, project);
+      this.router.navigate(`/project/${this.projectId}`);
+    });
+    actRow.appendChild(deletePageBtn);
 
     container.appendChild(actRow);
 
