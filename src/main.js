@@ -12,6 +12,8 @@ import { Router } from './router.js';
 import { ProjectListView } from './views/ProjectListView.js';
 import { ProjectCreateView } from './views/ProjectCreateView.js';
 import { ProjectDetailView } from './views/ProjectDetailView.js';
+import { PageDetailView } from './views/PageDetailView.js';
+import { NodeDetailView } from './views/NodeDetailView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -39,8 +41,20 @@ router.add('/project/:id', (params) => {
   app.appendChild(view.render());
 });
 
-router.add('/render/:id', (params) => {
-  const view = new RenderView(params.id);
+router.add('/project/:pid/:pageId', (params) => {
+  const view = new PageDetailView(router, params.pid, params.pageId);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/:pageId/node/:nid', (params) => {
+  const view = new NodeDetailView(router, params.pid, params.pageId, params.nid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/render/:pid/:pageId', (params) => {
+  const view = new RenderView(params.pid, params.pageId);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

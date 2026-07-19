@@ -45,8 +45,8 @@ export class ProjectDetailView {
     };
     if (project.description) addMeta('Description', project.description);
     if (project.author) addMeta('Author', project.author);
-    addMeta('Created', new Date(project.created_at).toLocaleString());
-    addMeta('Edited', new Date(project.edited_at).toLocaleString());
+    addMeta('Created', new Date(project.created_at).toLocaleString(navigator.language));
+    addMeta('Edited', new Date(project.edited_at).toLocaleString(navigator.language));
     addMeta('Pages', String(project.pages.length));
     container.appendChild(meta);
 
@@ -58,23 +58,17 @@ export class ProjectDetailView {
     const pageList = document.createElement('ul');
     project.pages.forEach((page, idx) => {
       const li = document.createElement('li');
-      li.textContent = `${idx + 1}. ${page.title} (${page.items.length} nodes)`;
+
+      const link = document.createElement('a');
+      link.href = `#/project/${this.projectId}/${idx}`;
+      link.textContent = `${idx + 1}. ${page.title} (${page.items.length} nodes)`;
+      li.appendChild(link);
+
       pageList.appendChild(li);
     });
     container.appendChild(pageList);
 
-    // --- Actions ---
     const actions = document.createElement('div');
-
-    const renderBtn = document.createElement('button');
-    renderBtn.textContent = 'Render';
-    renderBtn.addEventListener('click', () => {
-      // Open the rendered result in a new tab
-      const url = `${window.location.origin}${window.location.pathname}#/render/${this.projectId}`;
-      window.open(url, '_blank');
-    });
-    actions.appendChild(renderBtn);
-
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Back to list';
     editBtn.addEventListener('click', () => {

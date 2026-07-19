@@ -5,37 +5,38 @@ import { getProjectById } from '../storage.js';
  * Intended to be opened in a separate tab for a clean preview.
  */
 export class RenderView {
-  constructor(projectId) {
+  constructor(projectId, pageId) {
     this.projectId = parseInt(projectId, 10);
+    this.pageId = parseInt(pageId ?? 0);
   }
 
-  render() {
-    const container = document.createElement('div');
+    render() {
+        const container = document.createElement('div');
 
-    const project = getProjectById(this.projectId);
+        const project = getProjectById(this.projectId);
 
-    if (!project) {
-      const msg = document.createElement('p');
-      msg.textContent = 'Project not found.';
-      container.appendChild(msg);
-      return container;
-    }
+        if (!project) {
+            const msg = document.createElement('p');
+            msg.textContent = 'Project not found.';
+            container.appendChild(msg);
+            return container;
+        }
 
-    if (project.pages.length === 0) {
-      const msg = document.createElement('p');
-      msg.textContent = 'This project has no pages.';
-      container.appendChild(msg);
-      return container;
-    }
+        if (project.pages.length === 0) {
+            const msg = document.createElement('p');
+            msg.textContent = 'This project has no pages.';
+            container.appendChild(msg);
+            return container;
+        }
 
-    // Render the first page's items into the container
-    const heading = document.createElement('h1');
-    heading.textContent = project.pages[0].title;
-    container.appendChild(heading);
+        // Render the first page's items into the container
+        const page = project.pages[this.pageId];
 
-    const fragment = project.pages[0].render();
-    container.appendChild(fragment);
+        document.title = page.title;
 
-    return container;
+        const fragment = page.render();
+        container.appendChild(fragment);
+
+        return container;
   }
 }

@@ -136,3 +136,33 @@ export function deleteProject(id) {
   projects.splice(id, 1);
   saveProjects(projects);
 }
+
+// ---------------------------------------------------------------------------
+// Page helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Get a page by project index and page index.
+ * @param {number} projectId
+ * @param {number} pageId
+ * @returns {Page|null}
+ */
+export function getPageById(projectId, pageId) {
+  const project = getProjectById(projectId);
+  if (!project) return null;
+  return project.pages[pageId] ?? null;
+}
+
+/**
+ * Persist a single page in a project.
+ * @param {number} projectId
+ * @param {number} pageId
+ * @param {Page} page
+ */
+export function savePage(projectId, pageId, page) {
+  const project = getProjectById(projectId);
+  if (!project) return;
+  project.pages[pageId] = page;
+  project.edited_at = Date.now();
+  saveProject(projectId, project);
+}

@@ -25,6 +25,29 @@ export class Page extends Serializable {
     }
     return fragment;
   }
+
+  /**
+   * Recursively searches the entire node tree for a node with the given id.
+   * @param {string} nodeId
+   * @returns {Node|null}
+   */
+  findNodeById(nodeId) {
+    for (const item of this.items) {
+      const found = this._findInTree(item, nodeId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /** @private */
+  _findInTree(node, nodeId) {
+    if (node.id === nodeId) return node;
+    for (const child of node.items) {
+      const found = this._findInTree(child, nodeId);
+      if (found) return found;
+    }
+    return null;
+  }
 }
 
 registerType('Page', Page);
