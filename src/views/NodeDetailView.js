@@ -42,10 +42,14 @@ export class NodeDetailView {
     breadcrumb.appendChild(document.createTextNode(` / <${node.tagName}>`));
     container.appendChild(breadcrumb);
 
-    // --- Tag name ---
-    const tagRow = document.createElement('div');
-    tagRow.textContent = `Tag: <${node.tagName}>`;
-    container.appendChild(tagRow);
+    // --- Type / pseudo info ---
+    const typeRow = document.createElement('div');
+    if (node.type !== 'node') {
+      typeRow.textContent = `Type: ${node.type} — ${node.pseudo}`;
+    } else {
+      typeRow.textContent = `Tag: <${node.tagName}>`;
+    }
+    container.appendChild(typeRow);
 
     // --- ID ---
     const idRow = document.createElement('div');
@@ -90,17 +94,21 @@ export class NodeDetailView {
     container.appendChild(actions);
 
     // --- Children (items) ---
+    const realItems = node.items.filter((c) => c.type === 'node');
+    const pseudoItems = node.items.filter((c) => c.type !== 'node');
+
     const childrenHeading = document.createElement('h4');
-    childrenHeading.textContent = `Children (${node.items.length})`;
+    childrenHeading.textContent = `Children (${realItems.length})`;
     container.appendChild(childrenHeading);
 
-    if (node.items.length === 0) {
+    // --- Regular node list ---
+    if (realItems.length === 0) {
       const none = document.createElement('p');
       none.textContent = '(no children)';
       container.appendChild(none);
     } else {
       const childList = document.createElement('ul');
-      node.items.forEach((child) => {
+      realItems.forEach((child) => {
         const li = document.createElement('li');
 
         const link = document.createElement('a');
@@ -113,6 +121,39 @@ export class NodeDetailView {
         childList.appendChild(li);
       });
       container.appendChild(childList);
+    }
+
+    // --- Toggle pseudo items ---
+    if (pseudoItems.length > 0) {
+      const pseudoToggle = document.createElement('a');
+      pseudoToggle.href = '#';
+      pseudoToggle.textContent = `Show pseudo-classes (${pseudoItems.length})`;
+
+      const pseudoList = document.createElement('ul');
+      pseudoList.style.display = 'none';
+      pseudoItems.forEach((child) => {
+        const li = document.createElement('li');
+
+        const link = document.createElement('a');
+        link.href =
+          `#/project/${this.projectId}/${this.pageId}/node/${child.id}`;
+        link.textContent = `${child.pseudo || child.type}`;
+        li.appendChild(link);
+
+        pseudoList.appendChild(li);
+      });
+
+      pseudoToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        const hidden = pseudoList.style.display === 'none';
+        pseudoList.style.display = hidden ? 'block' : 'none';
+        pseudoToggle.textContent = hidden
+          ? `Hide pseudo-classes`
+          : `Show pseudo-classes (${pseudoItems.length})`;
+      });
+
+      container.appendChild(pseudoToggle);
+      container.appendChild(pseudoList);
     }
 
     // --- Back ---

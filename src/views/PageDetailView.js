@@ -64,8 +64,11 @@ export class PageDetailView {
     container.appendChild(titleRow);
 
     // --- Node hierarchy ---
+    const realItems = page.items.filter((n) => n.type === 'node');
+    const pseudoItems = page.items.filter((n) => n.type !== 'node');
+
     const nodesHeading = document.createElement('h3');
-    nodesHeading.textContent = `Top-level nodes (${page.items.length})`;
+    nodesHeading.textContent = `Top-level nodes (${realItems.length})`;
     container.appendChild(nodesHeading);
 
     const createNodeLink = document.createElement('a');
@@ -73,23 +76,56 @@ export class PageDetailView {
     createNodeLink.textContent = '+ Create node';
     container.appendChild(createNodeLink);
 
-    if (page.items.length === 0) {
+    if (realItems.length === 0 && pseudoItems.length === 0) {
       const empty = document.createElement('p');
       empty.textContent = 'No nodes yet.';
       container.appendChild(empty);
     } else {
-      const nodeList = document.createElement('ul');
-      page.items.forEach((node) => {
-        const li = document.createElement('li');
+      if (realItems.length > 0) {
+        const nodeList = document.createElement('ul');
+        realItems.forEach((node) => {
+          const li = document.createElement('li');
 
-        const link = document.createElement('a');
-        link.href = `#/project/${this.projectId}/${this.pageId}/node/${node.id}`;
-        link.textContent = `<${node.tagName}> — ${node.items.length} children`;
-        li.appendChild(link);
+          const link = document.createElement('a');
+          link.href = `#/project/${this.projectId}/${this.pageId}/node/${node.id}`;
+          link.textContent = `<${node.tagName}> — ${node.items.length} children`;
+          li.appendChild(link);
 
-        nodeList.appendChild(li);
-      });
-      container.appendChild(nodeList);
+          nodeList.appendChild(li);
+        });
+        container.appendChild(nodeList);
+      }
+
+      // Toggle pseudo items
+      if (pseudoItems.length > 0) {
+        const pseudoToggle = document.createElement('a');
+        pseudoToggle.href = '#';
+        pseudoToggle.textContent = `Show pseudo-classes (${pseudoItems.length})`;
+
+        const pseudoList = document.createElement('ul');
+        pseudoList.style.display = 'none';
+        pseudoItems.forEach((child) => {
+          const li = document.createElement('li');
+          const link = document.createElement('a');
+          link.href =
+            `#/project/${this.projectId}/${this.pageId}/node/${child.id}`;
+          link.textContent = `${child.pseudo || child.type}`;
+          li.appendChild(link);
+          pseudoList.appendChild(li);
+        });
+
+        pseudoToggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          const hidden = pseudoList.style.display === 'none';
+          pseudoList.style.display = hidden ? 'block' : 'none';
+          pseudoToggle.textContent = hidden
+            ? 'Hide pseudo-classes'
+            : `Show pseudo-classes (${pseudoItems.length})`;
+        });
+
+        container.appendChild(pseudoToggle);
+        container.appendChild(pseudoList);
+      }
     }
 
     // --- Actions ---

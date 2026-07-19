@@ -42,36 +42,89 @@ export class NodeCreateView {
     // --- Heading ---
     const heading = document.createElement('h3');
     heading.textContent = this.parentNodeId
-      ? `Create child node under <${parentNode.tagName}>`
+      ? `Create child under <${parentNode.tagName}>`
       : 'Create top-level node';
     container.appendChild(heading);
 
-    // --- Tag name ---
+    // --- Type selector ---
+    const typeLabel = document.createElement('label');
+    typeLabel.textContent = 'Type';
+    const typeSelect = document.createElement('select');
+    ['node', 'pseudo_class', 'pseudo_element'].forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t === 'node' ? 'Node' : t === 'pseudo_class' ? 'Pseudo-class' : 'Pseudo-element';
+      typeSelect.appendChild(opt);
+    });
+    container.appendChild(typeLabel);
+    container.appendChild(typeSelect);
+
+    // --- Pseudo field (hidden when type = node) ---
+    const pseudoRow = document.createElement('div');
+    pseudoRow.style.display = 'none';
+    const pseudoLabel = document.createElement('label');
+    pseudoLabel.textContent = 'Pseudo';
+    const pseudoInput = document.createElement('input');
+    pseudoInput.type = 'text';
+    pseudoInput.placeholder = 'e.g. :hover or ::before';
+    pseudoRow.appendChild(pseudoLabel);
+    pseudoRow.appendChild(pseudoInput);
+    container.appendChild(pseudoRow);
+
+    typeSelect.addEventListener('change', () => {
+      pseudoRow.style.display = typeSelect.value === 'node' ? 'none' : 'block';
+    });
+
+    // --- Tag name (hidden for pseudo types) ---
+    const tagRow = document.createElement('div');
     const tagLabel = document.createElement('label');
     tagLabel.textContent = 'Tag name';
     const tagInput = document.createElement('input');
     tagInput.type = 'text';
     tagInput.value = 'div';
-    container.appendChild(tagLabel);
-    container.appendChild(tagInput);
+    tagRow.appendChild(tagLabel);
+    tagRow.appendChild(tagInput);
+    container.appendChild(tagRow);
 
-    // --- innerHTML (stored as attrs.textContent) ---
+    // --- innerHTML (hidden for pseudo types) ---
+    const htmlRow = document.createElement('div');
     const htmlLabel = document.createElement('label');
     htmlLabel.textContent = 'innerHTML';
     const htmlInput = document.createElement('textarea');
     htmlInput.placeholder = 'Optional text content…';
-    container.appendChild(htmlLabel);
-    container.appendChild(htmlInput);
+    htmlRow.appendChild(htmlLabel);
+    htmlRow.appendChild(htmlInput);
+    container.appendChild(htmlRow);
+
+    // Toggle tag/innerHTML visibility based on type
+    const toggleNodeFields = (show) => {
+      tagRow.style.display = show ? 'block' : 'none';
+      htmlRow.style.display = show ? 'block' : 'none';
+    };
+    typeSelect.addEventListener('change', () => {
+      const isNode = typeSelect.value === 'node';
+      toggleNodeFields(isNode);
+    });
 
     // --- Save ---
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Create';
     saveBtn.addEventListener('click', () => {
-      const tag = tagInput.value.trim() || 'div';
-      const innerHTML = htmlInput.value;
+      const type = typeSelect.value;
 
-      const attrs = innerHTML ? { textContent: innerHTML } : {};
-      const newNode = new Node(tag, attrs);
+      let newNode;
+      if (type === 'node') {
+        const tag = tagInput.value.trim() || 'div';
+        const innerHTML = htmlInput.value;
+        const attrs = innerHTML ? { textContent: innerHTML } : {};
+        newNode = new Node(tag, attrs);
+      } else {
+        // Pseudo — only pseudo marker matters
+        newNode = new Node('div', {});
+        newNode.type = type;
+        newNode.pseudo = pseudoInput.value.trim();
+        newNode.tagName = type === 'pseudo_class' ? ':pseudo-class' : '::pseudo-element';
+      }
 
       if (parentNode) {
         parentNode.items.push(newNode);
@@ -81,7 +134,6 @@ export class NodeCreateView {
 
       savePage(this.projectId, this.pageId, page);
 
-      // Navigate back to the node detail view or page view
       if (this.parentNodeId) {
         this.router.navigate(
           `/project/${this.projectId}/${this.pageId}/node/${this.parentNodeId}`,

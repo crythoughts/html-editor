@@ -22,12 +22,13 @@ Three domain classes that mirror the structure of an HTML document:
 - **`Page`** — a single "document" with a `title` and a flat list of top-level
   `Node` items. Provides a `render()` method that returns a `DocumentFragment`.
 - **`Node`** — a tree node representing an HTML element. Carries a unique
-  `id` (incremental integer string by default, or UUID v4 when `uuid_type` is
-  set to `'uuid'`), `tagName`, an `attrs` dictionary, a `styles` dictionary
+  `id`, a `type` (`'node'` by default, `'pseudo_class'`, or
+  `'pseudo_element'`), `pseudo` (CSS notation like `':hover'` or
+  `'::before'`), `tagName`, an `attrs` dictionary, a `styles` dictionary
   (CSS property / value pairs), and a recursive `items` array of child `Node`
-  objects. Provides `toDOM()` which produces a real `HTMLElement` subtree,
-  applying both `attrs` (as HTML attributes) and `styles` (via
-  `el.style.setProperty()`).
+  objects. Provides `toDOM()` which produces a real `HTMLElement` subtree;
+  pseudo-type children are skipped during DOM generation (their styles are
+  only relevant for the parent's data model).
 
 ## 3. LocalStorage CRUD (`src/storage.js`)
 
@@ -96,14 +97,21 @@ Four plain-DOM views that render into the `#app` mount point:
   field with a **Save title** button, a **+ Create node** link to add a
   top-level node, a list of top-level nodes as clickable links to their node
   detail view, and **Render page** / **Export to HTML** buttons.
-- **NodeDetailView** — displays a node's properties: tag name, ID,
-  attributes, a **+ Create child node** link, an **Edit node** link to modify
-  or delete the node, and a recursive list of child nodes (each is a
-  clickable link deeper into the hierarchy). Provides a **Back to page**
-  button.
-- **NodeCreateView** — form to create a new node. Fields: tag name and
-  innerHTML. The node is added as a top-level page item or as a child of a
-  specific parent node, depending on which route triggered the view.
+- **NodeDetailView** — displays a node's properties: type, tag name / pseudo
+  notation, ID, attributes, a **+ Create child node** link, an **Edit node**
+  link, and a recursive list of regular child nodes. Pseudo children are
+  hidden by default behind a **Show pseudo-classes** toggle link.
+  Provides a **Back to page** button.
+- **NodeCreateView** — form to create a new node with a type selector
+  (Node / Pseudo-class / Pseudo-element). For regular nodes: tag name and
+  innerHTML fields. For pseudo types: a pseudo field (`:hover`, `::before`)
+  and the tag/innerHTML fields are hidden.
+- **NodeEditView** — form to edit a node. Shows type (read-only) and pseudo
+  field (only for pseudo types). For regular nodes: tag name, innerHTML,
+  attributes (key/value rows with +/-), and links to dedicated sub-editors
+  for styles, id, and classes. For pseudo types: only the pseudo field and
+  styles link are shown (tag, innerHTML, attributes, id, classes are
+  irrelevant).
 - **NodeEditView** — form to edit a node's tag name, innerHTML, and
   arbitrary attributes (key/value rows with +/- buttons). Provides links
   to dedicated sub-editors for **styles**, **id**, and **classes**.

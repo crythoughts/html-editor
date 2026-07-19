@@ -5,6 +5,8 @@ import { registerType, getNextNodeId } from '../storage.js';
  * Node represents a single DOM-like element in the page tree.
  *
  * @property {string}  id       — unique identifier (incremental number or UUID)
+ * @property {string}  type     — 'node' (default), 'pseudo_class', or 'pseudo_element'
+ * @property {string}  pseudo   — CSS pseudo notation, e.g. ':hover' or '::before'
  * @property {string}  tagName  — HTML tag name (e.g. 'div', 'p', 'h1')
  * @property {Object}  attrs   — key/value map of HTML attributes
  * @property {Object}  styles  — key/value map of CSS properties (kebab-case)
@@ -14,11 +16,17 @@ export class Node extends Serializable {
   constructor(tagName = 'div', attrs = {}) {
     super();
     this.id = getNextNodeId();
+    this.type = 'node';
+    this.pseudo = '';
     this.tagName = tagName;
     this.attrs = { ...attrs };
     this.styles = {};
     this.items = [];
   }
+
+    isCreatesDOMElement() {
+        return this._type === "node";
+    }
 
   /**
    * Converts this node and all its descendants into real DOM elements.
@@ -46,11 +54,19 @@ export class Node extends Serializable {
 
     if (textContent !== null) {
       el.textContent = textContent;
-    } else {
-      for (const child of this.items) {
-        el.appendChild(child.toDOM());
-      }
     }
+
+    for (const child of this.items) {
+        // Pseudo items don't create DOM elements; their styles are
+        // only relevant for the parent (stored in the data model).
+        if (child.isCreatesDOMElement()) {
+            const childEl = child.toDOM();
+            if (childEl) {
+                el.appendChild(childEl);
+            }
+        }
+    }
+
     return el;
   }
 }
