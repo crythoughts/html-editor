@@ -46,11 +46,32 @@ import {
 } from './storage.js';
 
 const app = document.getElementById('app');
-if (!app) {
-  throw new Error('Mount point #app not found in the document.');
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const renderRoot = document.getElementById('render-root');
+const toolbar = document.getElementById('toolbar');
+
+if (!app) throw new Error('Mount point #app not found.');
+
+// ---------------------------------------------------------------------------
+// Preview — live right-side render that updates on every save
+// ---------------------------------------------------------------------------
+
+function updatePreview() {
+  const hash = window.location.hash.replace(/^#/, '') || '/';
+  if (hash.startsWith('/render/')) return; // full-screen render, no side preview
+  const { pid, pg } = parseRoute();
+  if (pid == null) { preview.innerHTML = ''; return; }
+  const project = getProjectById(pid);
+  const pageId = pg ?? 0;
+  if (!project || !project.pages[pageId]) { preview.innerHTML = ''; return; }
+  const view = new RenderView(pid, pageId);
+  preview.innerHTML = '';
+  const el = view.render();
+  while (el.firstChild) preview.appendChild(el.firstChild);
 }
 
-const toolbar = document.getElementById('toolbar');
+window.addEventListener('project-saved', updatePreview);
 
 // ---------------------------------------------------------------------------
 // Toolbar
@@ -90,9 +111,17 @@ function parseRoute() {
   return { pid, pg };
 }
 
-/** Refresh toolbar button states based on current route and history. */
+/** Refresh toolbar button states and layout visibility based on route. */
 function updateToolbar() {
+  const hash = window.location.hash.replace(/^#/, '') || '/';
+  const isRender = hash.startsWith('/render/');
   const { pid } = parseRoute();
+
+  // Toggle layout containers
+  if (toolbar) toolbar.style.display = isRender ? 'none' : 'flex';
+  if (editor) editor.style.display = isRender ? 'none' : 'flex';
+  if (renderRoot) renderRoot.style.display = isRender ? 'block' : 'none';
+
   undoBtn.disabled = pid == null || !canUndo(pid);
   redoBtn.disabled = pid == null || !canRedo(pid);
   renderBtn.style.display = pid != null ? 'inline' : 'none';
@@ -343,8 +372,10 @@ router.add('/project/:pid/:pageId/node/:nid', (params) => {
 
 router.add('/render/:pid/:pageId', (params) => {
   const view = new RenderView(params.pid, params.pageId);
-  app.innerHTML = '';
-  app.appendChild(view.render());
+  renderRoot.innerHTML = '';
+  renderRoot.appendChild(view.render());
+
+  setTimeout(() => { document.getElementById("editable-side").style.display = "none"; }, 1)
 });
 
 // Keep toolbar in sync after every route change
@@ -352,6 +383,7 @@ const origResolve = router.resolve.bind(router);
 router.resolve = function () {
   origResolve();
   updateToolbar();
+  updatePreview();
 };
 window.addEventListener('hashchange', updateToolbar);
 

@@ -164,6 +164,7 @@ export function saveProject(id, project) {
   pushSnapshot(id, old ? old.toJSON() : null);
   projects[id] = project;
   saveProjects(projects);
+  window.dispatchEvent(new CustomEvent('project-saved', { detail: { projectId: id } }));
 }
 
 /**

@@ -235,3 +235,21 @@ A persistent toolbar rendered outside the router in `#toolbar`. Contains:
 
 Keyboard shortcuts: `Ctrl+Z` (undo), `Ctrl+Shift+Z` (redo), `Ctrl+S` (save).
 The render button parses the current hash to extract project and page IDs.
+
+## 9. Editor layout
+
+The page is split into a **left editing panel** (`#app`) and a **right live
+preview** (`#preview`). The preview automatically updates on every project
+save via a `project-saved` custom event dispatched from `storage.js`. On the
+`/render/:pid/:pageId` route, the layout switches to full-screen (no toolbar,
+no panels).
+
+## 10. Tool system
+
+Three tool buttons (disabled placeholders for now):
+- **CURSOR** — default selection / navigation mode
+- **INFO** — click a node to inspect its properties
+- **SELECT** — select and highlight nodes
+
+Only the CURSOR button is active (disabled — no behaviour attached yet).
+The others are stubs for future implementation.

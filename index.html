@@ -4,10 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HTML Editor</title>
+  <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
-  <div id="toolbar"></div>
-  <div id="app"></div>
+  <div id="editable-side">
+    <div id="toolbar"></div>
+    <div id="tools">
+        <button id="tool-cursor" disabled>CURSOR</button>
+        <button id="tool-info" disabled>INFO</button>
+        <button id="tool-select" disabled>SELECT</button>
+    </div>
+    <div id="editor">
+        <div id="app"></div>
+        <div id="preview"></div>
+    </div>
+  </div>
+  <div id="render-root"></div>
+
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

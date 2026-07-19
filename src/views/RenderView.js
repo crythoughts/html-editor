@@ -11,7 +11,6 @@ export class RenderView {
   }
 
     render() {
-        document.getElementById("toolbar").remove();
         const container = document.createElement('div');
 
         const project = getProjectById(this.projectId);
