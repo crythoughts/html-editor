@@ -4,13 +4,15 @@ import { registerType, getNextNodeId } from '../storage.js';
 /**
  * Node represents a single DOM-like element in the page tree.
  *
- * @property {string}  id       — unique identifier (incremental number or UUID)
- * @property {string}  type     — 'node' (default), 'pseudo_class', or 'pseudo_element'
- * @property {string}  pseudo   — CSS pseudo notation, e.g. ':hover' or '::before'
- * @property {string}  tagName  — HTML tag name (e.g. 'div', 'p', 'h1')
- * @property {Object}  attrs   — key/value map of HTML attributes
- * @property {Object}  styles  — key/value map of CSS properties (kebab-case)
- * @property {Node[]}  items   — child nodes nested inside this node
+ * @property {string}  id              — unique identifier (incremental number or UUID)
+ * @property {string}  type            — 'node' (default), 'pseudo_class', 'pseudo_element', or 'component'
+ * @property {string}  pseudo          — CSS pseudo notation, e.g. ':hover' or '::before'
+ * @property {string}  tagName         — HTML tag name (e.g. 'div', 'p', 'h1')
+ * @property {string}  component_name  — referenced Component name (when type='component')
+ * @property {Object}  variables       — key/value overrides for Component variables
+ * @property {Object}  attrs           — key/value map of HTML attributes
+ * @property {Object}  styles          — key/value map of CSS properties (kebab-case)
+ * @property {Node[]}  items           — child nodes nested inside this node
  */
 export class Node extends Serializable {
   constructor(tagName = 'div', attrs = {}) {
@@ -18,31 +20,59 @@ export class Node extends Serializable {
     this.id = getNextNodeId();
     this.type = 'node';
     this.pseudo = '';
+    this.component_name = '';
+    this.variables = {};
     this.tagName = tagName;
     this.attrs = { ...attrs };
     this.styles = {};
     this.items = [];
   }
 
-    isCreatesDOMElement() {
-        return this._type === "node";
-    }
+  /** Returns true if this node should produce its own DOM element. */
+  isCreatesDOMElement() {
+    return this.type === 'node' || this.type === 'component';
+  }
 
   /**
    * Converts this node and all its descendants into real DOM elements.
-   * If attrs contains "textContent", it is applied as DOM textContent
-   * instead of an HTML attribute (useful for leaf text nodes).
-   * @returns {HTMLElement}
+   * When type is 'component', the referenced Component's items are rendered
+   * and returned as a DocumentFragment (no wrapper element).
+   *
+   * @param {Component[]} [components=[]] — project-level components for resolution
+   * @param {number}      [depth=0]       — recursion depth (max 100 prevents loops)
+   * @returns {HTMLElement|DocumentFragment}
    */
-  toDOM() {
+  toDOM(components = [], depth = 0) {
+    // --- Component reference: render the component's items instead ---
+    if (this.type === 'component' && this.component_name) {
+      if (depth >= 100) {
+        const el = document.createElement('div');
+        el.textContent = `[max depth: ${this.component_name}]`;
+        return el;
+      }
+      const comp = components.find((c) => c.name === this.component_name);
+      if (comp) {
+        const frag = document.createDocumentFragment();
+        for (const item of comp.items) {
+          const childEl = item.toDOM(components, depth + 1);
+          if (childEl) frag.appendChild(childEl);
+        }
+        return frag;
+      }
+      // Fallback placeholder
+      const el = document.createElement('div');
+      el.textContent = `[Component: ${this.component_name}]`;
+      el.setAttribute('data-component', this.component_name);
+      return el;
+    }
+
+    // --- Regular node ---
     const el = document.createElement(this.tagName);
 
-    // Apply inline styles
     for (const [prop, value] of Object.entries(this.styles)) {
       el.style.setProperty(prop, value);
     }
 
-    // Separate textContent from regular HTML attributes
     let textContent = null;
     for (const [key, value] of Object.entries(this.attrs)) {
       if (key === 'textContent') {
@@ -57,14 +87,10 @@ export class Node extends Serializable {
     }
 
     for (const child of this.items) {
-        // Pseudo items don't create DOM elements; their styles are
-        // only relevant for the parent (stored in the data model).
-        if (child.isCreatesDOMElement()) {
-            const childEl = child.toDOM();
-            if (childEl) {
-                el.appendChild(childEl);
-            }
-        }
+      if (child.isCreatesDOMElement()) {
+        const childEl = child.toDOM(components, depth);
+        if (childEl) el.appendChild(childEl);
+      }
     }
 
     return el;

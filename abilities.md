@@ -18,17 +18,23 @@ instances (with methods and prototype chain intact) rather than plain objects.
 Three domain classes that mirror the structure of an HTML document:
 
 - **`Project`** — top-level container holding a name, description, author,
-  creation / edit timestamps (unix ms), and an ordered list of `Page` objects.
+  creation / edit timestamps (unix ms), an ordered list of `Page` objects,
+  and an array of reusable `Component` templates.
+- **`Component`** — a reusable template (`src/models/Component.js`) with a
+  `name`, `id` (UUID), `items` (Node tree), and `variables` (array of
+  `Variable`). Stored inside `Project.components`.
+- **`Variable`** — a typed parameter (`src/models/Variable.js`) with `name`,
+  `type` (`'str'` or `'int'`), and `default` value.
 - **`Page`** — a single "document" with a `title` and a flat list of top-level
   `Node` items. Provides a `render()` method that returns a `DocumentFragment`.
 - **`Node`** — a tree node representing an HTML element. Carries a unique
-  `id`, a `type` (`'node'` by default, `'pseudo_class'`, or
-  `'pseudo_element'`), `pseudo` (CSS notation like `':hover'` or
-  `'::before'`), `tagName`, an `attrs` dictionary, a `styles` dictionary
-  (CSS property / value pairs), and a recursive `items` array of child `Node`
-  objects. Provides `toDOM()` which produces a real `HTMLElement` subtree;
-  pseudo-type children are skipped during DOM generation (their styles are
-  only relevant for the parent's data model).
+  `id`, a `type` (`'node'`, `'pseudo_class'`, `'pseudo_element'`, or
+  `'component'`), `pseudo` (CSS pseudo notation), `component_name`
+  (referenced Component name), `variables` (key/value overrides for
+  Component variables), `tagName`, `attrs`, `styles`, and recursive `items`.
+  Provides `toDOM(components)` which resolves component references by
+  looking up the named Component in the passed array; pseudo-type children
+  are skipped during DOM generation.
 
 ## 3. LocalStorage CRUD (`src/storage.js`)
 
@@ -62,6 +68,13 @@ Available routes:
 | `#/import`                                  | ProjectImportView   | Import a project from JSON             |
 | `#/project/:pid`                            | ProjectDetailView   | View / manage a single project         |
 | `#/project/:pid/export-json`                | ProjectExportJsonView | View / download project as JSON      |
+| `#/project/:pid/components`                 | ComponentListView   | List project components                 |
+| `#/project/:pid/components/create`          | ComponentCreateView | Create a new component                 |
+| `#/project/:pid/components/:cid`            | ComponentDetailView | View component details                 |
+| `#/project/:pid/components/:cid/edit`       | ComponentEditView   | Edit component name, variables & items  |
+| `#/.../components/:cid/node/create`          | NodeCreateView      | Create a node in a component           |
+| `#/.../components/:cid/node/:nid/create`     | NodeCreateView      | Create a child node under :nid         |
+| `#/.../components/:cid/node/:nid`            | ComponentNodeDetailView | View a node inside a component     |
 | `#/project/:pid/:pageId`                    | PageDetailView      | View / edit a single page              |
 | `#/project/:pid/:pageId/export-html`        | PageExportHtmlView  | View / download page as HTML           |
 | `#/project/:pid/:pageId/node/create`        | NodeCreateView      | Create a top-level node                |
@@ -86,10 +99,10 @@ Four plain-DOM views that render into the `#app` mount point:
   the required fields (`name`, `pages`, etc.), and on success restores the
   project via `restoreInstance()` and adds it to the project list.
 - **ProjectDetailView** — displays project metadata (name, description, author,
-  timestamps, page count). Lists pages as clickable links to the page detail.
-  Provides **Export to JSON** (navigates to a view with pretty-printed JSON),
-  **Export to file** (triggers a `.json` file download directly),
-  **Back to list**, and **Delete** actions.
+  timestamps, page count, component count). Lists pages as clickable links to
+  the page detail. Provides **Components** (navigates to component list),
+  **Export to JSON**, **Export to file**, **Back to list**, and **Delete**
+  actions.
 - **ProjectExportJsonView** — displays the serialised project as
   pretty-printed JSON inside a `<pre>` block. Provides a **Download as file**
   button that triggers a `.json` file download.
@@ -124,6 +137,32 @@ Four plain-DOM views that render into the `#app` mount point:
 - **NodeClassesView** — dedicated editor for the node's `class` HTML
   attribute. A single text input accepts space-separated class names and
   updates `attrs.class`.
+- **ComponentListView** — lists all components in a project with links to
+  view / edit each.
+- **ComponentCreateView** — form to create a new component with a name,
+  initial variables (name/type/default rows with +/-), and initial items
+  (tag/text rows with +/-).
+- **ComponentDetailView** — displays component metadata (name, ID),
+  variables list, and an inline tree of its items. Provides **Edit** and
+  **Back** buttons.
+- **ComponentEditView** — edits a component's name, variables
+  (add / remove / change name, type, default), and **items**. Items are
+  shown as a list with links to the **ComponentNodeDetailView** for each
+  item, a **Delete** button per item, and a **+ Create node** link that
+  opens the full `NodeCreateView` (with type selector, pseudo, component
+  support).
+- **ComponentNodeDetailView** — displays a node's properties (type, tag /
+  component name, ID, attributes, styles count) within a component's item
+  tree. Lists children with links to drill deeper, a **+ Create child
+  node** link, and a pseudo-classes toggle. Provides a **Back to component**
+  button.
+- **NodeCreateView** — form to create a new node (works for both page
+  items and component items). Supports **Node**, **Pseudo-class**,
+  **Pseudo-element**, and **Component** types. Component type shows a
+  dropdown of project components.
+- **NodeEditView** — form to edit a node. For **component** type nodes,
+  shows the component name field and variable overrides (key/value rows
+  with +/-) instead of tag, innerHTML, attributes, id, or classes.
 - **PageExportHtmlView** — serialises a page's rendered DOM into an HTML
   string (via `Page.render()` + `innerHTML`), displayed inside a `<pre>`
   block. Provides a **Download as file** button that triggers a `.html`

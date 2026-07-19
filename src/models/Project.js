@@ -4,12 +4,13 @@ import { registerType } from '../storage.js';
 /**
  * Project is the top-level entity that groups related pages together.
  *
- * @property {string} name        — project display name
- * @property {string} description — brief project description
- * @property {string} author      — author identifier
- * @property {number} created_at  — unix timestamp (ms) of creation
- * @property {number} edited_at   — unix timestamp (ms) of last modification
- * @property {Page[]} pages       — ordered list of pages in this project
+ * @property {string}     name        — project display name
+ * @property {string}     description — brief project description
+ * @property {string}     author      — author identifier
+ * @property {number}     created_at  — unix timestamp (ms) of creation
+ * @property {number}     edited_at   — unix timestamp (ms) of last modification
+ * @property {Page[]}     pages       — ordered list of pages in this project
+ * @property {Component[]} components — reusable component templates
  */
 export class Project extends Serializable {
   constructor(name = '', description = '', author = '') {
@@ -20,6 +21,7 @@ export class Project extends Serializable {
     this.created_at = Date.now();
     this.edited_at = Date.now();
     this.pages = [];
+    this.components = [];
   }
 
   /** Adds a Page and bumps the edited_at timestamp. */

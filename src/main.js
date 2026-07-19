@@ -7,6 +7,8 @@
 import './models/Project.js';
 import './models/Page.js';
 import './models/Node.js';
+import './models/Variable.js';
+import './models/Component.js';
 
 import { Router } from './router.js';
 import { ProjectListView } from './views/ProjectListView.js';
@@ -22,6 +24,11 @@ import { NodeEditView } from './views/NodeEditView.js';
 import { NodeStylesView } from './views/NodeStylesView.js';
 import { NodeIdView } from './views/NodeIdView.js';
 import { NodeClassesView } from './views/NodeClassesView.js';
+import { ComponentListView } from './views/ComponentListView.js';
+import { ComponentCreateView } from './views/ComponentCreateView.js';
+import { ComponentDetailView } from './views/ComponentDetailView.js';
+import { ComponentEditView } from './views/ComponentEditView.js';
+import { ComponentNodeDetailView } from './views/ComponentNodeDetailView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -59,6 +66,51 @@ router.add('/project/:id', (params) => {
 // (both have 3 segments, so order decides which matches first).
 router.add('/project/:pid/export-json', (params) => {
   const view = new ProjectExportJsonView(router, params.pid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+// --- Component routes ---
+router.add('/project/:pid/components', (params) => {
+  const view = new ComponentListView(router, params.pid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+// Literal must come before :cid (same segment count)
+router.add('/project/:pid/components/create', (params) => {
+  const view = new ComponentCreateView(router, params.pid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid', (params) => {
+  const view = new ComponentDetailView(router, params.pid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid/edit', (params) => {
+  const view = new ComponentEditView(router, params.pid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+// Component node routes (create before :nid — same segment count)
+router.add('/project/:pid/components/:cid/node/create', (params) => {
+  const view = new NodeCreateView(router, params.pid, null, null, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid/node/:nid/create', (params) => {
+  const view = new NodeCreateView(router, params.pid, null, params.nid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid/node/:nid', (params) => {
+  const view = new ComponentNodeDetailView(router, params.pid, params.cid, params.nid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

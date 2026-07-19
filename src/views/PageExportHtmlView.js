@@ -1,4 +1,4 @@
-import { getPageById } from '../storage.js';
+import { getPageById, getProjectById } from '../storage.js';
 
 /**
  * PageExportHtmlView — serialises a page's rendered DOM into an HTML string
@@ -28,8 +28,11 @@ export class PageExportHtmlView {
     container.appendChild(heading);
 
     // --- Render page to DOM and serialise to HTML string ---
+    const project = getProjectById(this.projectId);
+    const components = project ? project.components : [];
+
     const wrapper = document.createElement('div');
-    const fragment = page.render();
+    const fragment = page.render(components);
     wrapper.appendChild(fragment);
     const htmlStr = wrapper.innerHTML;
 

@@ -2,38 +2,24 @@ import { Serializable } from './Serializable.js';
 import { registerType } from '../storage.js';
 
 /**
- * Page represents a single page/document inside a Project.
+ * Component — a reusable template that can be embedded into any page
+ * inside the same project.
  *
- * @property {string} title  — display title of the page
- * @property {Node[]} items  — top-level Node objects that form the page content
+ * @property {string}     id        — unique identifier (UUID)
+ * @property {string}     name      — display / reference name
+ * @property {Node[]}     items     — the component's DOM-like children
+ * @property {Variable[]} variables — typed parameters that can be overridden
  */
-export class Page extends Serializable {
-  constructor(title = '') {
+export class Component extends Serializable {
+  constructor(name = '') {
     super();
-    this.title = title;
+    this.id = crypto.randomUUID();
+    this.name = name;
     this.items = [];
+    this.variables = [];
   }
 
-  /**
-   * Renders all top-level items into a DocumentFragment.
-   * Components array is passed to Node.toDOM() for component resolution.
-   * @param {Component[]} [components=[]]
-   * @returns {DocumentFragment}
-   */
-  render(components = []) {
-    const fragment = document.createDocumentFragment();
-    for (const item of this.items) {
-      const childEl = item.toDOM(components);
-      if (childEl) fragment.appendChild(childEl);
-    }
-    return fragment;
-  }
-
-  /**
-   * Recursively searches the entire node tree for a node with the given id.
-   * @param {string} nodeId
-   * @returns {Node|null}
-   */
+  /** Recursively finds a node by id inside this component's item tree. */
   findNodeById(nodeId) {
     for (const item of this.items) {
       const found = this._findInTree(item, nodeId);
@@ -52,10 +38,7 @@ export class Page extends Serializable {
     return null;
   }
 
-  /**
-   * Removes a node (by id) from the tree, searching all nesting levels.
-   * Returns true if found and removed, false otherwise.
-   */
+  /** Removes a node by id from the tree. Returns true if removed. */
   removeNodeById(nodeId) {
     const idx = this.items.findIndex((item) => item.id === nodeId);
     if (idx !== -1) {
@@ -82,4 +65,4 @@ export class Page extends Serializable {
   }
 }
 
-registerType('Page', Page);
+registerType('Component', Component);

@@ -48,6 +48,7 @@ export class ProjectDetailView {
     addMeta('Created', new Date(project.created_at).toLocaleString(navigator.language));
     addMeta('Edited', new Date(project.edited_at).toLocaleString(navigator.language));
     addMeta('Pages', String(project.pages.length));
+    addMeta('Components', String((project.components || []).length));
     container.appendChild(meta);
 
     // --- Pages list ---
@@ -90,6 +91,13 @@ export class ProjectDetailView {
       URL.revokeObjectURL(url);
     });
     actions.appendChild(exportFileBtn);
+
+    const compBtn = document.createElement('button');
+    compBtn.textContent = 'Components';
+    compBtn.addEventListener('click', () => {
+      this.router.navigate(`/project/${this.projectId}/components`);
+    });
+    actions.appendChild(compBtn);
 
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Back to list';

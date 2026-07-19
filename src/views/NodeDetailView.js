@@ -42,9 +42,11 @@ export class NodeDetailView {
     breadcrumb.appendChild(document.createTextNode(` / <${node.tagName}>`));
     container.appendChild(breadcrumb);
 
-    // --- Type / pseudo info ---
+    // --- Type / pseudo / component info ---
     const typeRow = document.createElement('div');
-    if (node.type !== 'node') {
+    if (node.type === 'component') {
+      typeRow.textContent = `Component: ${node.component_name}`;
+    } else if (node.type !== 'node') {
       typeRow.textContent = `Type: ${node.type} — ${node.pseudo}`;
     } else {
       typeRow.textContent = `Tag: <${node.tagName}>`;
@@ -94,8 +96,8 @@ export class NodeDetailView {
     container.appendChild(actions);
 
     // --- Children (items) ---
-    const realItems = node.items.filter((c) => c.type === 'node');
-    const pseudoItems = node.items.filter((c) => c.type !== 'node');
+    const realItems = node.items.filter((c) => c.type === 'node' || c.type === 'component');
+    const pseudoItems = node.items.filter((c) => c.type !== 'node' && c.type !== 'component');
 
     const childrenHeading = document.createElement('h4');
     childrenHeading.textContent = `Children (${realItems.length})`;
@@ -115,7 +117,9 @@ export class NodeDetailView {
         link.href =
           `#/project/${this.projectId}/${this.pageId}/node/${child.id}`;
         link.textContent =
-          `<${child.tagName}> — ${child.items.length} children`;
+          child.type === 'component'
+            ? `[Component: ${child.component_name}] — ${child.items.length} children`
+            : `<${child.tagName}> — ${child.items.length} children`;
         li.appendChild(link);
 
         childList.appendChild(li);

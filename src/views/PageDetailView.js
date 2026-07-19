@@ -64,8 +64,8 @@ export class PageDetailView {
     container.appendChild(titleRow);
 
     // --- Node hierarchy ---
-    const realItems = page.items.filter((n) => n.type === 'node');
-    const pseudoItems = page.items.filter((n) => n.type !== 'node');
+    const realItems = page.items.filter((n) => n.type === 'node' || n.type === 'component');
+    const pseudoItems = page.items.filter((n) => n.type !== 'node' && n.type !== 'component');
 
     const nodesHeading = document.createElement('h3');
     nodesHeading.textContent = `Top-level nodes (${realItems.length})`;
@@ -88,7 +88,10 @@ export class PageDetailView {
 
           const link = document.createElement('a');
           link.href = `#/project/${this.projectId}/${this.pageId}/node/${node.id}`;
-          link.textContent = `<${node.tagName}> — ${node.items.length} children`;
+          link.textContent =
+            node.type === 'component'
+              ? `[Component: ${node.component_name}] — ${node.items.length} children`
+              : `<${node.tagName}> — ${node.items.length} children`;
           li.appendChild(link);
 
           nodeList.appendChild(li);

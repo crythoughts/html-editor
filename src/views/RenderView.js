@@ -29,12 +29,12 @@ export class RenderView {
             return container;
         }
 
-        // Render the first page's items into the container
+        // Render the page passing project-level components for resolution
         const page = project.pages[this.pageId];
 
         document.title = page.title;
 
-        const fragment = page.render();
+        const fragment = page.render(project.components);
         container.appendChild(fragment);
 
         return container;

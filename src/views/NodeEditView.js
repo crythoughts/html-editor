@@ -32,18 +32,23 @@ export class NodeEditView {
       return container;
     }
 
-    const isPseudo = node.type !== 'node';
+    const type = node.type;
+    const isRegular = type === 'node';
+    const isPseudo = type === 'pseudo_class' || type === 'pseudo_element';
+    const isComp = type === 'component';
 
     // --- Heading ---
     const heading = document.createElement('h3');
     heading.textContent = isPseudo
-      ? `Edit ${node.pseudo || node.type}`
-      : `Edit <${node.tagName}>`;
+      ? `Edit ${node.pseudo || type}`
+      : isComp
+        ? `Edit component reference: ${node.component_name}`
+        : `Edit <${node.tagName}>`;
     container.appendChild(heading);
 
     // --- Type (read-only display) ---
     const typeRow = document.createElement('div');
-    typeRow.textContent = `Type: ${node.type}`;
+    typeRow.textContent = `Type: ${type}`;
     container.appendChild(typeRow);
 
     // --- Pseudo field (only for pseudo types) ---
@@ -56,10 +61,57 @@ export class NodeEditView {
     pseudoInput.value = node.pseudo;
     pseudoRow.appendChild(pseudoLabel);
     pseudoRow.appendChild(pseudoInput);
-    if (!isPseudo) pseudoRow.style.display = 'none';
+    pseudoRow.style.display = isPseudo ? 'block' : 'none';
     container.appendChild(pseudoRow);
 
-    // --- Tag name (hidden for pseudo types) ---
+    // --- Component name field (only for component type) ---
+    const compRow = document.createElement('div');
+    const compLabel = document.createElement('label');
+    compLabel.textContent = 'Component name';
+    const compInput = document.createElement('input');
+    compInput.type = 'text';
+    compInput.value = node.component_name;
+    compRow.appendChild(compLabel);
+    compRow.appendChild(compInput);
+    compRow.style.display = isComp ? 'block' : 'none';
+    container.appendChild(compRow);
+
+    // --- Component variables overrides (only for component type) ---
+    const varsSection = document.createElement('div');
+    varsSection.style.display = isComp ? 'block' : 'none';
+    const varsHeading = document.createElement('h4');
+    varsHeading.textContent = 'Variable overrides';
+    varsSection.appendChild(varsHeading);
+    const varsContainer = document.createElement('div');
+    const addVarOverride = (key, val) => {
+      const row = document.createElement('div');
+      const kInp = document.createElement('input');
+      kInp.type = 'text';
+      kInp.placeholder = 'Variable name';
+      kInp.value = key;
+      row.appendChild(kInp);
+      const vInp = document.createElement('input');
+      vInp.type = 'text';
+      vInp.placeholder = 'Override value';
+      vInp.value = val;
+      row.appendChild(vInp);
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '\u2212';
+      rmBtn.addEventListener('click', () => row.remove());
+      row.appendChild(rmBtn);
+      varsContainer.appendChild(row);
+    };
+    for (const [k, v] of Object.entries(node.variables ?? [])) {
+      addVarOverride(k, v);
+    }
+    varsSection.appendChild(varsContainer);
+    const addVarBtn = document.createElement('button');
+    addVarBtn.textContent = '+';
+    addVarBtn.addEventListener('click', () => addVarOverride('', ''));
+    varsSection.appendChild(addVarBtn);
+    container.appendChild(varsSection);
+
+    // --- Tag name (hidden for pseudo / component types) ---
     const tagRow = document.createElement('div');
     const tagLabel = document.createElement('label');
     tagLabel.textContent = 'Tag name';
@@ -68,10 +120,10 @@ export class NodeEditView {
     tagInput.value = node.tagName;
     tagRow.appendChild(tagLabel);
     tagRow.appendChild(tagInput);
-    if (isPseudo) tagRow.style.display = 'none';
+    tagRow.style.display = isRegular ? 'block' : 'none';
     container.appendChild(tagRow);
 
-    // --- innerHTML (hidden for pseudo types) ---
+    // --- innerHTML (hidden for pseudo / component types) ---
     const htmlRow = document.createElement('div');
     const htmlLabel = document.createElement('label');
     htmlLabel.textContent = 'innerHTML';
@@ -79,12 +131,12 @@ export class NodeEditView {
     htmlInput.value = node.attrs.textContent || '';
     htmlRow.appendChild(htmlLabel);
     htmlRow.appendChild(htmlInput);
-    if (isPseudo) htmlRow.style.display = 'none';
+    htmlRow.style.display = isRegular ? 'block' : 'none';
     container.appendChild(htmlRow);
 
-    // --- Attributes (hidden for pseudo types) ---
+    // --- Attributes (hidden for pseudo / component types) ---
     const attrsSection = document.createElement('div');
-    if (isPseudo) attrsSection.style.display = 'none';
+    attrsSection.style.display = isRegular ? 'block' : 'none';
 
     const attrsHeading = document.createElement('h4');
     attrsHeading.textContent = 'Attributes';
@@ -135,10 +187,10 @@ export class NodeEditView {
     const stylesLink = document.createElement('a');
     stylesLink.href =
       `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/styles`;
-    stylesLink.textContent = isPseudo ? 'Edit styles' : 'Edit styles';
+    stylesLink.textContent = 'Edit styles';
     subLinks.appendChild(stylesLink);
 
-    if (!isPseudo) {
+    if (isRegular) {
       const idLink = document.createElement('a');
       idLink.href =
         `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/id`;
@@ -159,7 +211,17 @@ export class NodeEditView {
     saveBtn.textContent = 'Save changes';
     saveBtn.addEventListener('click', () => {
       node.pseudo = pseudoInput.value.trim();
+      node.component_name = compInput.value.trim();
       node.tagName = tagInput.value.trim() || 'div';
+
+      // Collect component variable overrides
+      const newVars = {};
+      for (const row of varsContainer.children) {
+        const inputs = row.querySelectorAll('input');
+        const k = inputs[0].value.trim();
+        if (k) newVars[k] = inputs[1].value;
+      }
+      node.variables = newVars;
 
       const newAttrs = {};
       for (const row of attrsContainer.children) {

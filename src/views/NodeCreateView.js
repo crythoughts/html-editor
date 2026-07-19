@@ -1,41 +1,60 @@
-import { getPageById, savePage } from '../storage.js';
+import { getPageById, savePage, getProjectById, saveProject } from '../storage.js';
 import { Node } from '../models/Node.js';
 
 /**
  * NodeCreateView — form to create a new node.
+ * Works with both page items and component items (when componentId is given).
  *
- * Route pattern determines where the node is added:
- *   /project/:pid/:pageId/node/create       → top-level page item
- *   /project/:pid/:pageId/node/:nid/create  → child of :nid
+ * Route patterns:
+ *   /project/:pid/:pageId/node/create            → top-level page item
+ *   /project/:pid/:pageId/node/:nid/create       → child of :nid in page
+ *   /project/:pid/components/:cid/node/create    → top-level component item
+ *   /project/:pid/components/:cid/node/:nid/create → child of :nid in component
  */
 export class NodeCreateView {
-  constructor(router, projectId, pageId, parentNodeId) {
+  constructor(router, projectId, pageId, parentNodeId, componentId) {
     this.router = router;
     this.projectId = parseInt(projectId, 10);
-    this.pageId = parseInt(pageId, 10);
-    this.parentNodeId = parentNodeId ?? null; // null = top-level
+    this.pageId = pageId != null ? parseInt(pageId, 10) : null;
+    this.parentNodeId = parentNodeId ?? null;
+    this.componentId = componentId != null ? parseInt(componentId, 10) : null;
   }
 
   render() {
     const container = document.createElement('div');
 
-    const page = getPageById(this.projectId, this.pageId);
+    const project = getProjectById(this.projectId);
+    const components = project ? project.components : [];
+    let containerObj = null; // Page or Component
     let parentNode = null;
 
-    if (!page) {
-      const msg = document.createElement('p');
-      msg.textContent = 'Page not found.';
-      container.appendChild(msg);
-      return container;
-    }
-
-    if (this.parentNodeId) {
-      parentNode = page.findNodeById(this.parentNodeId);
-      if (!parentNode) {
-        const msg = document.createElement('p');
-        msg.textContent = 'Parent node not found.';
-        container.appendChild(msg);
+    if (this.componentId != null) {
+      // --- Working with a component ---
+      containerObj = project ? project.components[this.componentId] : null;
+      if (!containerObj) {
+        container.appendChild(document.createTextNode('Component not found.'));
         return container;
+      }
+      if (this.parentNodeId) {
+        parentNode = containerObj.findNodeById(this.parentNodeId);
+        if (!parentNode) {
+          container.appendChild(document.createTextNode('Parent node not found.'));
+          return container;
+        }
+      }
+    } else {
+      // --- Working with a page ---
+      containerObj = getPageById(this.projectId, this.pageId);
+      if (!containerObj) {
+        container.appendChild(document.createTextNode('Page not found.'));
+        return container;
+      }
+      if (this.parentNodeId) {
+        parentNode = containerObj.findNodeById(this.parentNodeId);
+        if (!parentNode) {
+          container.appendChild(document.createTextNode('Parent node not found.'));
+          return container;
+        }
       }
     }
 
@@ -50,16 +69,20 @@ export class NodeCreateView {
     const typeLabel = document.createElement('label');
     typeLabel.textContent = 'Type';
     const typeSelect = document.createElement('select');
-    ['node', 'pseudo_class', 'pseudo_element'].forEach((t) => {
+    ['node', 'pseudo_class', 'pseudo_element', 'component'].forEach((t) => {
       const opt = document.createElement('option');
       opt.value = t;
-      opt.textContent = t === 'node' ? 'Node' : t === 'pseudo_class' ? 'Pseudo-class' : 'Pseudo-element';
+      opt.textContent =
+        t === 'node' ? 'Node' :
+        t === 'pseudo_class' ? 'Pseudo-class' :
+        t === 'pseudo_element' ? 'Pseudo-element' :
+        'Component';
       typeSelect.appendChild(opt);
     });
     container.appendChild(typeLabel);
     container.appendChild(typeSelect);
 
-    // --- Pseudo field (hidden when type = node) ---
+    // --- Pseudo field (hidden when type = node or component) ---
     const pseudoRow = document.createElement('div');
     pseudoRow.style.display = 'none';
     const pseudoLabel = document.createElement('label');
@@ -71,11 +94,30 @@ export class NodeCreateView {
     pseudoRow.appendChild(pseudoInput);
     container.appendChild(pseudoRow);
 
-    typeSelect.addEventListener('change', () => {
-      pseudoRow.style.display = typeSelect.value === 'node' ? 'none' : 'block';
-    });
+    // --- Component selector (hidden when type != component) ---
+    const compRow = document.createElement('div');
+    compRow.style.display = 'none';
+    const compLabel = document.createElement('label');
+    compLabel.textContent = 'Component';
+    const compSelect = document.createElement('select');
+    if (components.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '(no components)';
+      compSelect.appendChild(opt);
+    } else {
+      components.forEach((c) => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        compSelect.appendChild(opt);
+      });
+    }
+    compRow.appendChild(compLabel);
+    compRow.appendChild(compSelect);
+    container.appendChild(compRow);
 
-    // --- Tag name (hidden for pseudo types) ---
+    // --- Tag name (hidden for pseudo/component types) ---
     const tagRow = document.createElement('div');
     const tagLabel = document.createElement('label');
     tagLabel.textContent = 'Tag name';
@@ -86,7 +128,7 @@ export class NodeCreateView {
     tagRow.appendChild(tagInput);
     container.appendChild(tagRow);
 
-    // --- innerHTML (hidden for pseudo types) ---
+    // --- innerHTML (hidden for pseudo/component types) ---
     const htmlRow = document.createElement('div');
     const htmlLabel = document.createElement('label');
     htmlLabel.textContent = 'innerHTML';
@@ -96,15 +138,18 @@ export class NodeCreateView {
     htmlRow.appendChild(htmlInput);
     container.appendChild(htmlRow);
 
-    // Toggle tag/innerHTML visibility based on type
-    const toggleNodeFields = (show) => {
-      tagRow.style.display = show ? 'block' : 'none';
-      htmlRow.style.display = show ? 'block' : 'none';
+    // Toggle visibility based on type
+    const updateVisibility = () => {
+      const t = typeSelect.value;
+      const showPseudo = t === 'pseudo_class' || t === 'pseudo_element';
+      const showComp = t === 'component';
+      const showNode = t === 'node';
+      pseudoRow.style.display = showPseudo ? 'block' : 'none';
+      compRow.style.display = showComp ? 'block' : 'none';
+      tagRow.style.display = showNode ? 'block' : 'none';
+      htmlRow.style.display = showNode ? 'block' : 'none';
     };
-    typeSelect.addEventListener('change', () => {
-      const isNode = typeSelect.value === 'node';
-      toggleNodeFields(isNode);
-    });
+    typeSelect.addEventListener('change', updateVisibility);
 
     // --- Save ---
     const saveBtn = document.createElement('button');
@@ -118,6 +163,11 @@ export class NodeCreateView {
         const innerHTML = htmlInput.value;
         const attrs = innerHTML ? { textContent: innerHTML } : {};
         newNode = new Node(tag, attrs);
+      } else if (type === 'component') {
+        newNode = new Node('div', {});
+        newNode.type = 'component';
+        newNode.component_name = compSelect.value;
+        newNode.tagName = '[component]';
       } else {
         // Pseudo — only pseudo marker matters
         newNode = new Node('div', {});
@@ -129,19 +179,24 @@ export class NodeCreateView {
       if (parentNode) {
         parentNode.items.push(newNode);
       } else {
-        page.items.push(newNode);
+        containerObj.items.push(newNode);
       }
 
-      savePage(this.projectId, this.pageId, page);
+      if (this.componentId != null) {
+        project.edited_at = Date.now();
+        saveProject(this.projectId, project);
+      } else {
+        savePage(this.projectId, this.pageId, containerObj);
+      }
+
+      const prefix = this.componentId != null
+        ? `/project/${this.projectId}/components/${this.componentId}`
+        : `/project/${this.projectId}/${this.pageId}`;
 
       if (this.parentNodeId) {
-        this.router.navigate(
-          `/project/${this.projectId}/${this.pageId}/node/${this.parentNodeId}`,
-        );
+        this.router.navigate(`${prefix}/node/${this.parentNodeId}`);
       } else {
-        this.router.navigate(
-          `/project/${this.projectId}/${this.pageId}`,
-        );
+        this.router.navigate(prefix);
       }
     });
     container.appendChild(saveBtn);
@@ -150,14 +205,14 @@ export class NodeCreateView {
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', () => {
+      const prefix = this.componentId != null
+        ? `/project/${this.projectId}/components/${this.componentId}`
+        : `/project/${this.projectId}/${this.pageId}`;
+
       if (this.parentNodeId) {
-        this.router.navigate(
-          `/project/${this.projectId}/${this.pageId}/node/${this.parentNodeId}`,
-        );
+        this.router.navigate(`${prefix}/node/${this.parentNodeId}`);
       } else {
-        this.router.navigate(
-          `/project/${this.projectId}/${this.pageId}`,
-        );
+        this.router.navigate(prefix);
       }
     });
     container.appendChild(cancelBtn);
