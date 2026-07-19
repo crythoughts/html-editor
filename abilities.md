@@ -212,6 +212,23 @@ Four plain-DOM views that render into the `#app` mount point:
 ## 6. Modular architecture
 
 All source files are ES modules (`type="module"`). Each class lives in its own
-file under `src/models/`. Views are separated in `src/views/`. The router and
-storage layer are independent modules. No bundler required — the browser loads
-modules natively.
+file under `src/models/`. Views are separated in `src/views/`. The router,
+storage, and history layers are independent modules. No bundler required.
+
+## 7. Undo / Redo history (`src/history.js`)
+
+Per-project history stored in localStorage with a 15-step ring buffer.
+Every call to `saveProject()` automatically pushes a snapshot of the
+previous state before overwriting. Undo restores the previous snapshot;
+redo moves forward. History is cleared when a project is deleted.
+
+## 8. Global toolbar
+
+A persistent toolbar rendered outside the router in `#toolbar`. Contains:
+- **Undo** / **Redo** buttons (disabled when no history available)
+- **Save** button (visual feedback only — data is saved automatically)
+- **Render** button (visible when a project route is active; opens the
+  current project/page in a new tab)
+
+Keyboard shortcuts: `Ctrl+Z` (undo), `Ctrl+Shift+Z` (redo), `Ctrl+S` (save).
+The render button parses the current hash to extract project and page IDs.

@@ -6,6 +6,7 @@
  *   saveProjects([project1, project2]);
  *   const projects = getProjects();   // instances restored with correct types
  */
+import { pushSnapshot, initHistory, clearHistory } from './history.js';
 
 // ---------------------------------------------------------------------------
 // Type registry
@@ -158,6 +159,9 @@ export function getProjectById(id) {
  */
 export function saveProject(id, project) {
   const projects = getProjects();
+  // Push snapshot of the state BEFORE this mutation
+  const old = projects[id];
+  pushSnapshot(id, old ? old.toJSON() : null);
   projects[id] = project;
   saveProjects(projects);
 }
@@ -171,7 +175,10 @@ export function addProject(project) {
   const projects = getProjects();
   projects.push(project);
   saveProjects(projects);
-  return projects.length - 1;
+  const id = projects.length - 1;
+  // Seed initial history snapshot
+  initHistory(id, project.toJSON());
+  return id;
 }
 
 /**
@@ -182,6 +189,7 @@ export function deleteProject(id) {
   const projects = getProjects();
   projects.splice(id, 1);
   saveProjects(projects);
+  clearHistory(id);
 }
 
 // ---------------------------------------------------------------------------

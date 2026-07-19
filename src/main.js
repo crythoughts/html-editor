@@ -38,11 +38,122 @@ import { PaletteCreateView } from './views/PaletteCreateView.js';
 import { PaletteEditView } from './views/PaletteEditView.js';
 import { HeadView } from './views/HeadView.js';
 import { RenderView } from './views/RenderView.js';
+import {
+  canUndo, canRedo, undo as histUndo, redo as histRedo,
+} from './history.js';
+import {
+  getProjectById, getProjects, saveProjects, restoreInstance,
+} from './storage.js';
 
 const app = document.getElementById('app');
 if (!app) {
   throw new Error('Mount point #app not found in the document.');
 }
+
+const toolbar = document.getElementById('toolbar');
+
+// ---------------------------------------------------------------------------
+// Toolbar
+// ---------------------------------------------------------------------------
+
+const undoBtn = document.createElement('button');
+undoBtn.textContent = 'Undo';
+undoBtn.title = 'Undo (Ctrl+Z)';
+undoBtn.disabled = true;
+
+const redoBtn = document.createElement('button');
+redoBtn.textContent = 'Redo';
+redoBtn.title = 'Redo (Ctrl+Shift+Z)';
+redoBtn.disabled = true;
+
+const saveBtn = document.createElement('button');
+saveBtn.textContent = 'Save';
+
+const renderBtn = document.createElement('button');
+renderBtn.textContent = 'Render';
+renderBtn.style.display = 'none';
+
+if (toolbar) {
+  toolbar.appendChild(undoBtn);
+  toolbar.appendChild(redoBtn);
+  toolbar.appendChild(saveBtn);
+  toolbar.appendChild(renderBtn);
+}
+
+/** Extract projectId and pageId from the current hash. */
+function parseRoute() {
+  const hash = window.location.hash.replace(/^#/, '') || '/';
+  const m1 = hash.match(/^\/project\/(\d+)(?:\/(\d+))?/);
+  const m2 = hash.match(/^\/render\/(\d+)\/(\d+)/);
+  const pid = m1 ? parseInt(m1[1], 10) : (m2 ? parseInt(m2[1], 10) : null);
+  const pg = m1 && m1[2] ? parseInt(m1[2], 10) : (m2 ? parseInt(m2[2], 10) : null);
+  return { pid, pg };
+}
+
+/** Refresh toolbar button states based on current route and history. */
+function updateToolbar() {
+  const { pid } = parseRoute();
+  undoBtn.disabled = pid == null || !canUndo(pid);
+  redoBtn.disabled = pid == null || !canRedo(pid);
+  renderBtn.style.display = pid != null ? 'inline' : 'none';
+}
+
+undoBtn.addEventListener('click', () => {
+  const { pid } = parseRoute();
+  if (pid == null || !canUndo(pid)) return;
+  const snap = histUndo(pid);
+  if (snap) {
+    const projects = getProjects();
+    projects[pid] = restoreInstance(snap);
+    saveProjects(projects);
+    router.resolve();
+  }
+  updateToolbar();
+});
+
+redoBtn.addEventListener('click', () => {
+  const { pid } = parseRoute();
+  if (pid == null || !canRedo(pid)) return;
+  const snap = histRedo(pid);
+  if (snap) {
+    const projects = getProjects();
+    projects[pid] = restoreInstance(snap);
+    saveProjects(projects);
+    router.resolve();
+  }
+  updateToolbar();
+});
+
+saveBtn.addEventListener('click', () => {
+  saveBtn.textContent = 'Saved!';
+  setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
+});
+
+renderBtn.addEventListener('click', () => {
+  const { pid, pg } = parseRoute();
+  if (pid != null && pg != null) {
+    const url = `${window.location.origin}${window.location.pathname}#/render/${pid}/${pg}`;
+    window.open(url, '_blank');
+  }
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undoBtn.click();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+    e.preventDefault();
+    redoBtn.click();
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveBtn.click();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
 
 const router = new Router();
 
@@ -235,6 +346,14 @@ router.add('/render/:pid/:pageId', (params) => {
   app.innerHTML = '';
   app.appendChild(view.render());
 });
+
+// Keep toolbar in sync after every route change
+const origResolve = router.resolve.bind(router);
+router.resolve = function () {
+  origResolve();
+  updateToolbar();
+};
+window.addEventListener('hashchange', updateToolbar);
 
 // Resolve the initial route
 router.resolve();
