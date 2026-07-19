@@ -73,9 +73,11 @@ export class ComponentDetailView {
       const list = document.createElement('ul');
       comp.items.forEach((node) => {
         const li = document.createElement('li');
-        const tag = node.type === 'component'
-          ? `[Component: ${node.component_name}]`
-          : `<${node.tagName}>`;
+        const tag = node.type === 'include'
+          ? '[Include slot]'
+          : node.type === 'component'
+            ? `[Component: ${node.component_name}]`
+            : `<${node.tagName}>`;
         li.textContent = `${tag} — ${node.items.length} children`;
         list.appendChild(li);
       });

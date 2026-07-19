@@ -30,7 +30,7 @@ export class Node extends Serializable {
 
   /** Returns true if this node should produce its own DOM element. */
   isCreatesDOMElement() {
-    return this.type === 'node' || this.type === 'component';
+    return this.type === 'node' || this.type === 'component' || this.type === 'include';
   }
 
   /**
@@ -81,13 +81,31 @@ export class Node extends Serializable {
    *   as CSS rules and NOT applied inline.
    *   If the node has no class/id → styles are applied inline as fallback.
    *
+   * Include slots:
+   *   `slotItems` — when rendering a component reference's items, these
+   *   are the child nodes of the component reference node itself. An
+   *   `include` node renders them at its position (slot mechanism).
+   *
    * @param {Component[]} [components=[]] — project-level components
    * @param {number}      [depth=0]       — recursion depth limit
    * @param {Object}      [varValues={}]  — resolved variable values
    * @param {Array|null}  [styleRules=null] — collector for component CSS rules
+   * @param {Node[]|null} [slotItems=null] — slot content from the referencing node
    * @returns {HTMLElement|DocumentFragment}
    */
-  toDOM(components = [], depth = 0, varValues = {}, styleRules = null) {
+  toDOM(components = [], depth = 0, varValues = {}, styleRules = null, slotItems = null) {
+    // --- Include slot: render the slot items instead ---
+    if (this.type === 'include') {
+      const frag = document.createDocumentFragment();
+      if (slotItems && slotItems.length > 0) {
+        for (const slot of slotItems) {
+          const childEl = slot.toDOM(components, depth, varValues, styleRules, null);
+          if (childEl) frag.appendChild(childEl);
+        }
+      }
+      return frag;
+    }
+
     // --- Component reference: render the component's items instead ---
     if (this.type === 'component' && this.component_name) {
       if (depth >= 100) {
@@ -112,8 +130,9 @@ export class Node extends Serializable {
         const childRules = [];
         const frag = document.createDocumentFragment();
 
+        // Pass this node's own items as slotItems so <include> resolves them
         for (const item of comp.items) {
-          const childEl = item.toDOM(components, depth + 1, mergedVars, childRules);
+          const childEl = item.toDOM(components, depth + 1, mergedVars, childRules, this.items);
           if (childEl) frag.appendChild(childEl);
         }
 
@@ -172,7 +191,7 @@ export class Node extends Serializable {
 
     for (const child of this.items) {
       if (child.isCreatesDOMElement()) {
-        const childEl = child.toDOM(components, depth, varValues, styleRules);
+        const childEl = child.toDOM(components, depth, varValues, styleRules, null);
         if (childEl) el.appendChild(childEl);
       }
     }

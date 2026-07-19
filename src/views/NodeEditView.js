@@ -56,6 +56,7 @@ export class NodeEditView {
     const isRegular = type === 'node';
     const isPseudo = type === 'pseudo_class' || type === 'pseudo_element';
     const isCompType = type === 'component';
+    const isInclude = type === 'include';
 
     // --- Heading ---
     const heading = document.createElement('h3');
@@ -63,7 +64,9 @@ export class NodeEditView {
       ? `Edit ${node.pseudo || type}`
       : isCompType
         ? `Edit component reference: ${node.component_name}`
-        : `Edit <${node.tagName}>`;
+        : isInclude
+          ? 'Edit include slot'
+          : `Edit <${node.tagName}>`;
     container.appendChild(heading);
 
     // --- Type (read-only) ---

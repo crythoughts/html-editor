@@ -69,14 +69,15 @@ export class NodeCreateView {
     const typeLabel = document.createElement('label');
     typeLabel.textContent = 'Type';
     const typeSelect = document.createElement('select');
-    ['node', 'pseudo_class', 'pseudo_element', 'component'].forEach((t) => {
+    ['node', 'pseudo_class', 'pseudo_element', 'component', 'include'].forEach((t) => {
       const opt = document.createElement('option');
       opt.value = t;
       opt.textContent =
         t === 'node' ? 'Node' :
         t === 'pseudo_class' ? 'Pseudo-class' :
         t === 'pseudo_element' ? 'Pseudo-element' :
-        'Component';
+        t === 'component' ? 'Component' :
+        'Include slot';
       typeSelect.appendChild(opt);
     });
     container.appendChild(typeLabel);
@@ -144,10 +145,12 @@ export class NodeCreateView {
       const showPseudo = t === 'pseudo_class' || t === 'pseudo_element';
       const showComp = t === 'component';
       const showNode = t === 'node';
+      const showSimple = t === 'include';
       pseudoRow.style.display = showPseudo ? 'block' : 'none';
       compRow.style.display = showComp ? 'block' : 'none';
       tagRow.style.display = showNode ? 'block' : 'none';
       htmlRow.style.display = showNode ? 'block' : 'none';
+      // include type shows nothing extra
     };
     typeSelect.addEventListener('change', updateVisibility);
 
@@ -168,6 +171,10 @@ export class NodeCreateView {
         newNode.type = 'component';
         newNode.component_name = compSelect.value;
         newNode.tagName = '[component]';
+      } else if (type === 'include') {
+        newNode = new Node('div', {});
+        newNode.type = 'include';
+        newNode.tagName = '[include]';
       } else {
         // Pseudo — only pseudo marker matters
         newNode = new Node('div', {});

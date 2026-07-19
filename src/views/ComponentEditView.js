@@ -108,6 +108,7 @@ export class ComponentEditView {
         link.href =
           `#/project/${this.projectId}/components/${this.compId}/node/${node.id}`;
         link.textContent =
+          node.type === 'include' ? '[Include slot]' :
           node.type === 'component'
             ? `[Component: ${node.component_name}] — ${node.items.length} children`
             : `<${node.tagName}> — ${node.items.length} children`;

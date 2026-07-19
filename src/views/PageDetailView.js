@@ -64,8 +64,12 @@ export class PageDetailView {
     container.appendChild(titleRow);
 
     // --- Node hierarchy ---
-    const realItems = page.items.filter((n) => n.type === 'node' || n.type === 'component');
-    const pseudoItems = page.items.filter((n) => n.type !== 'node' && n.type !== 'component');
+    const realItems = page.items.filter(
+      (n) => n.type === 'node' || n.type === 'component' || n.type === 'include',
+    );
+    const pseudoItems = page.items.filter(
+      (n) => n.type !== 'node' && n.type !== 'component' && n.type !== 'include',
+    );
 
     const nodesHeading = document.createElement('h3');
     nodesHeading.textContent = `Top-level nodes (${realItems.length})`;
@@ -89,6 +93,7 @@ export class PageDetailView {
           const link = document.createElement('a');
           link.href = `#/project/${this.projectId}/${this.pageId}/node/${node.id}`;
           link.textContent =
+            node.type === 'include' ? '[Include slot]' :
             node.type === 'component'
               ? `[Component: ${node.component_name}] — ${node.items.length} children`
               : `<${node.tagName}> — ${node.items.length} children`;

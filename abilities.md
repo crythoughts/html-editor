@@ -46,13 +46,16 @@ Three domain classes that mirror the structure of an HTML document:
 - **`Page`** — a single "document" with a `title` and a flat list of top-level
   `Node` items. Provides a `render()` method that returns a `DocumentFragment`.
 - **`Node`** — a tree node representing an HTML element. Carries a unique
-  `id`, a `type` (`'node'`, `'pseudo_class'`, `'pseudo_element'`, or
-  `'component'`), `pseudo` (CSS pseudo notation), `component_name`
+  `type` (`'node'`, `'pseudo_class'`, `'pseudo_element'`, `'component'`, or
+  or `'component'` or `'include'`), `pseudo` (CSS pseudo notation), `component_name`
   (referenced Component name), `variables` (key/value overrides for
   Component variables), `tagName`, `attrs`, `styles`, and recursive `items`.
-  Provides `toDOM(components, depth, varValues, styleRules)` which resolves
+  Provides `toDOM(components, depth, varValues, styleRules, slotItems)` which resolves
   component references, enforces a max recursion depth of 100, resolves
-  variable references in attribute values, and handles CSS styles
+  variable references in attribute values, handles CSS styles,
+  and supports the **include slot** mechanism: when `type === 'include'`,
+  the node renders `slotItems` (the child nodes of the parent component
+  reference) at its position, enabling slot-based content projection.
   contextually: in regular (page) context styles are applied inline; in
   component context, nodes with a class or id get their styles emitted
   as a `<style>` tag with proper CSS selectors instead of inline styles.

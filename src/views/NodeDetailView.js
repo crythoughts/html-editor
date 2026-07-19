@@ -62,6 +62,7 @@ export class NodeDetailView {
     breadcrumb.appendChild(parentLink);
     breadcrumb.appendChild(
       document.createTextNode(
+        node.type === 'include' ? ' / [Include slot]' :
         node.type === 'component'
           ? ` / [Component: ${node.component_name}]`
           : ` / <${node.tagName}>`,
@@ -71,7 +72,9 @@ export class NodeDetailView {
 
     // --- Type / tag / component info ---
     const infoRow = document.createElement('div');
-    if (node.type === 'component') {
+    if (node.type === 'include') {
+      infoRow.textContent = 'Include slot';
+    } else if (node.type === 'component') {
       infoRow.textContent = `Component: ${node.component_name}`;
     } else if (node.type !== 'node') {
       infoRow.textContent = `Type: ${node.type} — ${node.pseudo}`;
@@ -122,10 +125,10 @@ export class NodeDetailView {
 
     // --- Children ---
     const realItems = node.items.filter(
-      (c) => c.type === 'node' || c.type === 'component',
+      (c) => c.type === 'node' || c.type === 'component' || c.type === 'include',
     );
     const pseudoItems = node.items.filter(
-      (c) => c.type !== 'node' && c.type !== 'component',
+      (c) => c.type !== 'node' && c.type !== 'component' && c.type !== 'include',
     );
 
     const childrenHeading = document.createElement('h4');
@@ -146,6 +149,7 @@ export class NodeDetailView {
         const link = document.createElement('a');
         link.href = `${base}/node/${child.id}`;
         link.textContent =
+          child.type === 'include' ? '[Include slot]' :
           child.type === 'component'
             ? `[Component: ${child.component_name}] — ${child.items.length} children`
             : `<${child.tagName}> — ${child.items.length} children`;
