@@ -24,7 +24,8 @@ export class Page extends Serializable {
   render(components = [], varValues = {}) {
     const fragment = document.createDocumentFragment();
     for (const item of this.items) {
-      const childEl = item.toDOM(components, 0, varValues);
+      // styleRules = null → regular page context, always inline styles
+      const childEl = item.toDOM(components, 0, varValues, null);
       if (childEl) fragment.appendChild(childEl);
     }
     return fragment;

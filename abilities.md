@@ -36,11 +36,13 @@ Three domain classes that mirror the structure of an HTML document:
   `'component'`), `pseudo` (CSS pseudo notation), `component_name`
   (referenced Component name), `variables` (key/value overrides for
   Component variables), `tagName`, `attrs`, `styles`, and recursive `items`.
-  Provides `toDOM(components, depth, varValues)` which resolves component
-  references by looking up the named Component in the passed array,
-  enforces a max recursion depth of 100, and resolves variable references
-  in attribute values. Pseudo-type children are skipped during DOM
-  generation.
+  Provides `toDOM(components, depth, varValues, styleRules)` which resolves
+  component references, enforces a max recursion depth of 100, resolves
+  variable references in attribute values, and handles CSS styles
+  contextually: in regular (page) context styles are applied inline; in
+  component context, nodes with a class or id get their styles emitted
+  as a `<style>` tag with proper CSS selectors instead of inline styles.
+  Pseudo-type children are skipped during DOM generation.
 
 ## 3. LocalStorage CRUD (`src/storage.js`)
 

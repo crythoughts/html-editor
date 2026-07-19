@@ -52,17 +52,42 @@ export class Node extends Serializable {
   }
 
   /**
+   * Build a CSS selector from a node's class and/or id attributes.
+   * Returns '' if neither is present.
+   * @private
+   */
+  _buildSelector(attrs) {
+    const parts = [];
+    if (attrs.id) {
+      parts.push(`#${CSS.escape(attrs.id)}`);
+    }
+    if (attrs.class) {
+      const classes = String(attrs.class).split(/\s+/).filter(Boolean);
+      for (const cls of classes) {
+        parts.push(`.${CSS.escape(cls)}`);
+      }
+    }
+    return parts.join('');
+  }
+
+  /**
    * Converts this node and all its descendants into real DOM elements.
-   * When type is 'component', the referenced Component's items are rendered
-   * and returned as a DocumentFragment (no wrapper element).
-   * Variable references in attrs are resolved using the current varValues.
    *
-   * @param {Component[]} [components=[]] — project-level components for resolution
-   * @param {number}      [depth=0]       — recursion depth (max 100 prevents loops)
-   * @param {Object}      [varValues={}]  — resolved variable values for this scope
+   * Style behaviour:
+   * - **Regular (non-component) context** (`styleRules` is null):
+   *   all styles are applied inline via `el.style.setProperty()`.
+   * - **Component context** (`styleRules` is an array):
+   *   if the node has a class or id → styles are pushed into `styleRules`
+   *   as CSS rules and NOT applied inline.
+   *   If the node has no class/id → styles are applied inline as fallback.
+   *
+   * @param {Component[]} [components=[]] — project-level components
+   * @param {number}      [depth=0]       — recursion depth limit
+   * @param {Object}      [varValues={}]  — resolved variable values
+   * @param {Array|null}  [styleRules=null] — collector for component CSS rules
    * @returns {HTMLElement|DocumentFragment}
    */
-  toDOM(components = [], depth = 0, varValues = {}) {
+  toDOM(components = [], depth = 0, varValues = {}, styleRules = null) {
     // --- Component reference: render the component's items instead ---
     if (this.type === 'component' && this.component_name) {
       if (depth >= 100) {
@@ -83,11 +108,25 @@ export class Node extends Serializable {
           mergedVars[key] = val;
         }
 
+        // Create a fresh collector for this component's CSS rules
+        const childRules = [];
         const frag = document.createDocumentFragment();
+
         for (const item of comp.items) {
-          const childEl = item.toDOM(components, depth + 1, mergedVars);
+          const childEl = item.toDOM(components, depth + 1, mergedVars, childRules);
           if (childEl) frag.appendChild(childEl);
         }
+
+        // Prepend a <style> block if any rules were collected
+        if (childRules.length > 0) {
+          const cssText = childRules
+            .map((r) => `${r.selector} { ${r.css} }`)
+            .join('\n');
+          const styleEl = document.createElement('style');
+          styleEl.textContent = cssText;
+          frag.insertBefore(styleEl, frag.firstChild);
+        }
+
         return frag;
       }
       // Fallback placeholder
@@ -99,9 +138,22 @@ export class Node extends Serializable {
 
     // --- Regular node ---
     const el = document.createElement(this.tagName);
+    const hasSelector = !!(this.attrs.class || this.attrs.id);
 
-    for (const [prop, value] of Object.entries(this.styles)) {
-      el.style.setProperty(prop, value);
+    // In component context with a class/id → collect styles as CSS rules
+    if (styleRules && hasSelector && Object.keys(this.styles).length > 0) {
+      const selector = this._buildSelector(this.attrs);
+      if (selector) {
+        const cssProps = Object.entries(this.styles)
+          .map(([prop, val]) => `${prop}: ${val}`)
+          .join('; ');
+        styleRules.push({ selector, css: cssProps });
+      }
+    } else {
+      // Otherwise apply styles inline as before
+      for (const [prop, value] of Object.entries(this.styles)) {
+        el.style.setProperty(prop, value);
+      }
     }
 
     let textContent = null;
@@ -120,7 +172,7 @@ export class Node extends Serializable {
 
     for (const child of this.items) {
       if (child.isCreatesDOMElement()) {
-        const childEl = child.toDOM(components, depth, varValues);
+        const childEl = child.toDOM(components, depth, varValues, styleRules);
         if (childEl) el.appendChild(childEl);
       }
     }
