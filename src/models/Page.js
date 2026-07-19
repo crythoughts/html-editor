@@ -18,12 +18,13 @@ export class Page extends Serializable {
    * Renders all top-level items into a DocumentFragment.
    * Components array is passed to Node.toDOM() for component resolution.
    * @param {Component[]} [components=[]]
+   * @param {Object}      [varValues={}]  — variable values for this page scope
    * @returns {DocumentFragment}
    */
-  render(components = []) {
+  render(components = [], varValues = {}) {
     const fragment = document.createDocumentFragment();
     for (const item of this.items) {
-      const childEl = item.toDOM(components);
+      const childEl = item.toDOM(components, 0, varValues);
       if (childEl) fragment.appendChild(childEl);
     }
     return fragment;

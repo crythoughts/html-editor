@@ -19,7 +19,11 @@ Three domain classes that mirror the structure of an HTML document:
 
 - **`Project`** — top-level container holding a name, description, author,
   creation / edit timestamps (unix ms), an ordered list of `Page` objects,
-  and an array of reusable `Component` templates.
+  and an array of reusable `Component` templates. Components support
+  **variable interpolation**: when a node's attribute value is an object
+  `{ type: "variable", value: "varName" }`, the renderer resolves it
+  using the component's variable definitions and any overrides provided
+  by the referencing node.
 - **`Component`** — a reusable template (`src/models/Component.js`) with a
   `name`, `id` (UUID), `items` (Node tree), and `variables` (array of
   `Variable`). Stored inside `Project.components`.
@@ -32,9 +36,11 @@ Three domain classes that mirror the structure of an HTML document:
   `'component'`), `pseudo` (CSS pseudo notation), `component_name`
   (referenced Component name), `variables` (key/value overrides for
   Component variables), `tagName`, `attrs`, `styles`, and recursive `items`.
-  Provides `toDOM(components)` which resolves component references by
-  looking up the named Component in the passed array; pseudo-type children
-  are skipped during DOM generation.
+  Provides `toDOM(components, depth, varValues)` which resolves component
+  references by looking up the named Component in the passed array,
+  enforces a max recursion depth of 100, and resolves variable references
+  in attribute values. Pseudo-type children are skipped during DOM
+  generation.
 
 ## 3. LocalStorage CRUD (`src/storage.js`)
 

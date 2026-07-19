@@ -34,15 +34,35 @@ export class Node extends Serializable {
   }
 
   /**
+   * Resolve a single attribute value. If it's a variable reference object
+   * ({ type: "variable", value: "name" }), look up the value from varValues.
+   * Otherwise return the value as-is.
+   * @private
+   */
+  _resolveAttrValue(value, varValues) {
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      value.type === 'variable'
+    ) {
+      return varValues[value.value] ?? '';
+    }
+    return value;
+  }
+
+  /**
    * Converts this node and all its descendants into real DOM elements.
    * When type is 'component', the referenced Component's items are rendered
    * and returned as a DocumentFragment (no wrapper element).
+   * Variable references in attrs are resolved using the current varValues.
    *
    * @param {Component[]} [components=[]] — project-level components for resolution
    * @param {number}      [depth=0]       — recursion depth (max 100 prevents loops)
+   * @param {Object}      [varValues={}]  — resolved variable values for this scope
    * @returns {HTMLElement|DocumentFragment}
    */
-  toDOM(components = [], depth = 0) {
+  toDOM(components = [], depth = 0, varValues = {}) {
     // --- Component reference: render the component's items instead ---
     if (this.type === 'component' && this.component_name) {
       if (depth >= 100) {
@@ -52,9 +72,20 @@ export class Node extends Serializable {
       }
       const comp = components.find((c) => c.name === this.component_name);
       if (comp) {
+        // Build merged variable values: component defaults + node overrides
+        const mergedVars = { ...varValues };
+        for (const v of comp.variables) {
+          if (!(v.name in mergedVars)) {
+            mergedVars[v.name] = v.default;
+          }
+        }
+        for (const [key, val] of Object.entries(this.variables)) {
+          mergedVars[key] = val;
+        }
+
         const frag = document.createDocumentFragment();
         for (const item of comp.items) {
-          const childEl = item.toDOM(components, depth + 1);
+          const childEl = item.toDOM(components, depth + 1, mergedVars);
           if (childEl) frag.appendChild(childEl);
         }
         return frag;
@@ -75,10 +106,11 @@ export class Node extends Serializable {
 
     let textContent = null;
     for (const [key, value] of Object.entries(this.attrs)) {
+      const resolved = this._resolveAttrValue(value, varValues);
       if (key === 'textContent') {
-        textContent = value;
+        textContent = resolved;
       } else {
-        el.setAttribute(key, String(value));
+        el.setAttribute(key, String(resolved));
       }
     }
 
@@ -88,7 +120,7 @@ export class Node extends Serializable {
 
     for (const child of this.items) {
       if (child.isCreatesDOMElement()) {
-        const childEl = child.toDOM(components, depth);
+        const childEl = child.toDOM(components, depth, varValues);
         if (childEl) el.appendChild(childEl);
       }
     }
