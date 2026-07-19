@@ -74,7 +74,11 @@ Available routes:
 | `#/project/:pid/components/:cid/edit`       | ComponentEditView   | Edit component name, variables & items  |
 | `#/.../components/:cid/node/create`          | NodeCreateView      | Create a node in a component           |
 | `#/.../components/:cid/node/:nid/create`     | NodeCreateView      | Create a child node under :nid         |
-| `#/.../components/:cid/node/:nid`            | ComponentNodeDetailView | View a node inside a component     |
+| `#/.../components/:cid/node/:nid`            | NodeDetailView      | View a node inside a component         |
+| `#/.../components/:cid/node/:nid/edit`       | NodeEditView        | Edit node inside a component           |
+| `#/.../components/:cid/node/:nid/edit/styles` | NodeStylesView      | Edit styles of a component node        |
+| `#/.../components/:cid/node/:nid/edit/id`     | NodeIdView          | Edit id of a component node            |
+| `#/.../components/:cid/node/:nid/edit/classes`| NodeClassesView     | Edit classes of a component node       |
 | `#/project/:pid/:pageId`                    | PageDetailView      | View / edit a single page              |
 | `#/project/:pid/:pageId/export-html`        | PageExportHtmlView  | View / download page as HTML           |
 | `#/project/:pid/:pageId/node/create`        | NodeCreateView      | Create a top-level node                |
@@ -110,33 +114,33 @@ Four plain-DOM views that render into the `#app` mount point:
   field with a **Save title** button, a **+ Create node** link to add a
   top-level node, a list of top-level nodes as clickable links to their node
   detail view, and **Render page** / **Export to HTML** buttons.
-- **NodeDetailView** — displays a node's properties: type, tag name / pseudo
-  notation, ID, attributes, a **+ Create child node** link, an **Edit node**
-  link, and a recursive list of regular child nodes. Pseudo children are
-  hidden by default behind a **Show pseudo-classes** toggle link.
-  Provides a **Back to page** button.
+- **NodeDetailView** — displays a node's properties: type, tag / pseudo /
+  component name, ID, attributes, a **+ Create child node** link, an **Edit
+  node** link, and a recursive list of child nodes. Pseudo children are
+  hidden behind a **Show pseudo-classes** toggle. Works for both page nodes
+  (`pageId` context) and component nodes (`componentId` context) — links,
+  breadcrumbs, and back button adapt automatically.
 - **NodeCreateView** — form to create a new node with a type selector
-  (Node / Pseudo-class / Pseudo-element). For regular nodes: tag name and
-  innerHTML fields. For pseudo types: a pseudo field (`:hover`, `::before`)
-  and the tag/innerHTML fields are hidden.
-- **NodeEditView** — form to edit a node. Shows type (read-only) and pseudo
-  field (only for pseudo types). For regular nodes: tag name, innerHTML,
-  attributes (key/value rows with +/-), and links to dedicated sub-editors
-  for styles, id, and classes. For pseudo types: only the pseudo field and
-  styles link are shown (tag, innerHTML, attributes, id, classes are
-  irrelevant).
+  (Node / Pseudo-class / Pseudo-element / Component). Works for both page
+  items and component items. Supports pseudo, tag+innerHTML, and component
+  reference fields depending on the selected type.
+- **NodeEditView** — form to edit a node. Works for both page and component
+  contexts. Shows type (read-only), and adapts fields: pseudo name for
+  pseudo types, component name + variable overrides for component
+  references, and tag + innerHTML + attributes + sub-editor links for
+  regular nodes.
 - **NodeEditView** — form to edit a node's tag name, innerHTML, and
   arbitrary attributes (key/value rows with +/- buttons). Provides links
   to dedicated sub-editors for **styles**, **id**, and **classes**.
   Also provides a **Save changes** button and a **Delete node** button.
-- **NodeStylesView** — dedicated editor for a node's inline `styles`
-  dictionary. Each style is a row with CSS property and value inputs, plus
-  +/- buttons for adding / removing entries.
-- **NodeIdView** — dedicated editor for the node's `id` HTML attribute.
-  Simple text input that updates `attrs.id`.
-- **NodeClassesView** — dedicated editor for the node's `class` HTML
-  attribute. A single text input accepts space-separated class names and
-  updates `attrs.class`.
+- **NodeStylesView** — editor for a node's inline `styles` dictionary
+  (CSS property / value rows with +/-). Works for both page and component
+  contexts.
+- **NodeIdView** — editor for the node's `id` HTML attribute. Works for
+  both page and component contexts.
+- **NodeClassesView** — editor for the node's `class` HTML attribute
+  (space-separated class names). Works for both page and component
+  contexts.
 - **ComponentListView** — lists all components in a project with links to
   view / edit each.
 - **ComponentCreateView** — form to create a new component with a name,
@@ -151,11 +155,7 @@ Four plain-DOM views that render into the `#app` mount point:
   item, a **Delete** button per item, and a **+ Create node** link that
   opens the full `NodeCreateView` (with type selector, pseudo, component
   support).
-- **ComponentNodeDetailView** — displays a node's properties (type, tag /
-  component name, ID, attributes, styles count) within a component's item
-  tree. Lists children with links to drill deeper, a **+ Create child
-  node** link, and a pseudo-classes toggle. Provides a **Back to component**
-  button.
+
 - **NodeCreateView** — form to create a new node (works for both page
   items and component items). Supports **Node**, **Pseudo-class**,
   **Pseudo-element**, and **Component** types. Component type shows a

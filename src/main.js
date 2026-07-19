@@ -28,7 +28,6 @@ import { ComponentListView } from './views/ComponentListView.js';
 import { ComponentCreateView } from './views/ComponentCreateView.js';
 import { ComponentDetailView } from './views/ComponentDetailView.js';
 import { ComponentEditView } from './views/ComponentEditView.js';
-import { ComponentNodeDetailView } from './views/ComponentNodeDetailView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -109,8 +108,32 @@ router.add('/project/:pid/components/:cid/node/:nid/create', (params) => {
   app.appendChild(view.render());
 });
 
+router.add('/project/:pid/components/:cid/node/:nid/edit', (params) => {
+  const view = new NodeEditView(router, params.pid, null, params.nid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid/node/:nid/edit/styles', (params) => {
+  const view = new NodeStylesView(router, params.pid, null, params.nid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid/node/:nid/edit/id', (params) => {
+  const view = new NodeIdView(router, params.pid, null, params.nid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/components/:cid/node/:nid/edit/classes', (params) => {
+  const view = new NodeClassesView(router, params.pid, null, params.nid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
 router.add('/project/:pid/components/:cid/node/:nid', (params) => {
-  const view = new ComponentNodeDetailView(router, params.pid, params.cid, params.nid);
+  const view = new NodeDetailView(router, params.pid, null, params.nid, params.cid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

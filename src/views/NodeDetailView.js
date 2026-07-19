@@ -1,57 +1,84 @@
-import { getPageById } from '../storage.js';
+import { getPageById, getProjectById } from '../storage.js';
 
 /**
- * NodeDetailView — shows a single node's properties (tagName, attrs, id)
- * and lists its children with links to drill further into the hierarchy.
+ * NodeDetailView — shows a single node's properties and its children.
+ * Works for both page nodes and component nodes (when componentId is given).
  */
 export class NodeDetailView {
-  constructor(router, projectId, pageId, nodeId) {
+  constructor(router, projectId, pageId, nodeId, componentId) {
     this.router = router;
     this.projectId = parseInt(projectId, 10);
-    this.pageId = parseInt(pageId, 10);
+    this.pageId = pageId != null ? parseInt(pageId, 10) : null;
     this.nodeId = nodeId;
+    this.componentId = componentId != null ? parseInt(componentId, 10) : null;
   }
 
   render() {
     const container = document.createElement('div');
 
-    const page = getPageById(this.projectId, this.pageId);
-    const node = page ? page.findNodeById(this.nodeId) : null;
+    const isComp = this.componentId != null;
+    let containerObj = null; // Page or Component
+    let node = null;
+    let project = null;
 
-    if (!page || !node) {
-      const msg = document.createElement('p');
-      msg.textContent = 'Node not found.';
-      container.appendChild(msg);
+    if (isComp) {
+      project = getProjectById(this.projectId);
+      const comp = project ? project.components[this.componentId] : null;
+      containerObj = comp;
+      node = comp ? comp.findNodeById(this.nodeId) : null;
+    } else {
+      const page = getPageById(this.projectId, this.pageId);
+      containerObj = page;
+      node = page ? page.findNodeById(this.nodeId) : null;
+    }
+
+    if (!containerObj || !node) {
+      container.appendChild(document.createTextNode('Node not found.'));
 
       const back = document.createElement('button');
-      back.textContent = 'Back to page';
+      back.textContent = isComp ? 'Back to component' : 'Back to page';
       back.addEventListener('click', () =>
-        this.router.navigate(`/project/${this.projectId}/${this.pageId}`),
+        this.router.navigate(
+          isComp
+            ? `/project/${this.projectId}/components/${this.componentId}/edit`
+            : `/project/${this.projectId}/${this.pageId}`,
+        ),
       );
       container.appendChild(back);
-
       return container;
     }
 
+    const base = isComp
+      ? `#/project/${this.projectId}/components/${this.componentId}`
+      : `#/project/${this.projectId}/${this.pageId}`;
+
     // --- Breadcrumb ---
     const breadcrumb = document.createElement('div');
-    const pageLink = document.createElement('a');
-    pageLink.href = `#/project/${this.projectId}/${this.pageId}`;
-    pageLink.textContent = 'Page';
-    breadcrumb.appendChild(pageLink);
-    breadcrumb.appendChild(document.createTextNode(` / <${node.tagName}>`));
+    const parentLink = document.createElement('a');
+    parentLink.href = isComp ? `${base}/edit` : base;
+    parentLink.textContent = isComp
+      ? (containerObj.name || 'Component')
+      : 'Page';
+    breadcrumb.appendChild(parentLink);
+    breadcrumb.appendChild(
+      document.createTextNode(
+        node.type === 'component'
+          ? ` / [Component: ${node.component_name}]`
+          : ` / <${node.tagName}>`,
+      ),
+    );
     container.appendChild(breadcrumb);
 
-    // --- Type / pseudo / component info ---
-    const typeRow = document.createElement('div');
+    // --- Type / tag / component info ---
+    const infoRow = document.createElement('div');
     if (node.type === 'component') {
-      typeRow.textContent = `Component: ${node.component_name}`;
+      infoRow.textContent = `Component: ${node.component_name}`;
     } else if (node.type !== 'node') {
-      typeRow.textContent = `Type: ${node.type} — ${node.pseudo}`;
+      infoRow.textContent = `Type: ${node.type} — ${node.pseudo}`;
     } else {
-      typeRow.textContent = `Tag: <${node.tagName}>`;
+      infoRow.textContent = `Tag: <${node.tagName}>`;
     }
-    container.appendChild(typeRow);
+    container.appendChild(infoRow);
 
     // --- ID ---
     const idRow = document.createElement('div');
@@ -82,40 +109,42 @@ export class NodeDetailView {
     const actions = document.createElement('div');
 
     const createChildLink = document.createElement('a');
-    createChildLink.href =
-      `#/project/${this.projectId}/${this.pageId}/node/${node.id}/create`;
+    createChildLink.href = `${base}/node/${node.id}/create`;
     createChildLink.textContent = '+ Create child node';
     actions.appendChild(createChildLink);
 
     const editLink = document.createElement('a');
-    editLink.href =
-      `#/project/${this.projectId}/${this.pageId}/node/${node.id}/edit`;
+    editLink.href = `${base}/node/${node.id}/edit`;
     editLink.textContent = 'Edit node';
     actions.appendChild(editLink);
 
     container.appendChild(actions);
 
-    // --- Children (items) ---
-    const realItems = node.items.filter((c) => c.type === 'node' || c.type === 'component');
-    const pseudoItems = node.items.filter((c) => c.type !== 'node' && c.type !== 'component');
+    // --- Children ---
+    const realItems = node.items.filter(
+      (c) => c.type === 'node' || c.type === 'component',
+    );
+    const pseudoItems = node.items.filter(
+      (c) => c.type !== 'node' && c.type !== 'component',
+    );
 
     const childrenHeading = document.createElement('h4');
     childrenHeading.textContent = `Children (${realItems.length})`;
     container.appendChild(childrenHeading);
 
-    // --- Regular node list ---
-    if (realItems.length === 0) {
+    if (realItems.length === 0 && pseudoItems.length === 0) {
       const none = document.createElement('p');
       none.textContent = '(no children)';
       container.appendChild(none);
-    } else {
+    }
+
+    if (realItems.length > 0) {
       const childList = document.createElement('ul');
       realItems.forEach((child) => {
         const li = document.createElement('li');
 
         const link = document.createElement('a');
-        link.href =
-          `#/project/${this.projectId}/${this.pageId}/node/${child.id}`;
+        link.href = `${base}/node/${child.id}`;
         link.textContent =
           child.type === 'component'
             ? `[Component: ${child.component_name}] — ${child.items.length} children`
@@ -127,7 +156,7 @@ export class NodeDetailView {
       container.appendChild(childList);
     }
 
-    // --- Toggle pseudo items ---
+    // Pseudo toggle
     if (pseudoItems.length > 0) {
       const pseudoToggle = document.createElement('a');
       pseudoToggle.href = '#';
@@ -137,13 +166,10 @@ export class NodeDetailView {
       pseudoList.style.display = 'none';
       pseudoItems.forEach((child) => {
         const li = document.createElement('li');
-
         const link = document.createElement('a');
-        link.href =
-          `#/project/${this.projectId}/${this.pageId}/node/${child.id}`;
-        link.textContent = `${child.pseudo || child.type}`;
+        link.href = `${base}/node/${child.id}`;
+        link.textContent = child.pseudo || child.type;
         li.appendChild(link);
-
         pseudoList.appendChild(li);
       });
 
@@ -152,7 +178,7 @@ export class NodeDetailView {
         const hidden = pseudoList.style.display === 'none';
         pseudoList.style.display = hidden ? 'block' : 'none';
         pseudoToggle.textContent = hidden
-          ? `Hide pseudo-classes`
+          ? 'Hide pseudo-classes'
           : `Show pseudo-classes (${pseudoItems.length})`;
       });
 
@@ -162,9 +188,9 @@ export class NodeDetailView {
 
     // --- Back ---
     const backBtn = document.createElement('button');
-    backBtn.textContent = 'Back to page';
+    backBtn.textContent = isComp ? 'Back to component' : 'Back to page';
     backBtn.addEventListener('click', () =>
-      this.router.navigate(`/project/${this.projectId}/${this.pageId}`),
+      this.router.navigate(isComp ? `${base}/edit` : base),
     );
     container.appendChild(backBtn);
 

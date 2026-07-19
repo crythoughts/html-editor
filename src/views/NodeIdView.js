@@ -1,35 +1,50 @@
-import { getPageById, savePage } from '../storage.js';
+import { getPageById, savePage, getProjectById, saveProject } from '../storage.js';
 
 /**
  * NodeIdView — edit the node's HTML id attribute.
+ * Works for both page nodes and component nodes.
  */
 export class NodeIdView {
-  constructor(router, projectId, pageId, nodeId) {
+  constructor(router, projectId, pageId, nodeId, componentId) {
     this.router = router;
     this.projectId = parseInt(projectId, 10);
-    this.pageId = parseInt(pageId, 10);
+    this.pageId = pageId != null ? parseInt(pageId, 10) : null;
     this.nodeId = nodeId;
+    this.componentId = componentId != null ? parseInt(componentId, 10) : null;
   }
 
   render() {
     const container = document.createElement('div');
 
-    const page = getPageById(this.projectId, this.pageId);
-    const node = page ? page.findNodeById(this.nodeId) : null;
+    const isComp = this.componentId != null;
+    let project = null;
+    let containerObj = null;
+    let node = null;
 
-    if (!page || !node) {
-      const msg = document.createElement('p');
-      msg.textContent = 'Node not found.';
-      container.appendChild(msg);
+    if (isComp) {
+      project = getProjectById(this.projectId);
+      const comp = project ? project.components[this.componentId] : null;
+      containerObj = comp;
+      node = comp ? comp.findNodeById(this.nodeId) : null;
+    } else {
+      const page = getPageById(this.projectId, this.pageId);
+      containerObj = page;
+      node = page ? page.findNodeById(this.nodeId) : null;
+    }
+
+    if (!containerObj || !node) {
+      container.appendChild(document.createTextNode('Node not found.'));
       return container;
     }
 
-    // --- Heading ---
+    const base = isComp
+      ? `/project/${this.projectId}/components/${this.componentId}`
+      : `/project/${this.projectId}/${this.pageId}`;
+
     const heading = document.createElement('h3');
     heading.textContent = `ID — <${node.tagName}>`;
     container.appendChild(heading);
 
-    // --- ID input ---
     const label = document.createElement('label');
     label.textContent = 'id';
     const input = document.createElement('input');
@@ -39,7 +54,6 @@ export class NodeIdView {
     container.appendChild(label);
     container.appendChild(input);
 
-    // --- Save ---
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save id';
     saveBtn.addEventListener('click', () => {
@@ -49,20 +63,22 @@ export class NodeIdView {
       } else {
         delete node.attrs.id;
       }
-      savePage(this.projectId, this.pageId, page);
-      this.router.navigate(
-        `/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit`,
-      );
+
+      if (isComp) {
+        project.edited_at = Date.now();
+        saveProject(this.projectId, project);
+      } else {
+        savePage(this.projectId, this.pageId, containerObj);
+      }
+
+      this.router.navigate(`${base}/node/${this.nodeId}/edit`);
     });
     container.appendChild(saveBtn);
 
-    // --- Cancel ---
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', () => {
-      this.router.navigate(
-        `/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit`,
-      );
+      this.router.navigate(`${base}/node/${this.nodeId}/edit`);
     });
     container.appendChild(cancelBtn);
 

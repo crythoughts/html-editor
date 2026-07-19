@@ -1,58 +1,79 @@
-import { getPageById, savePage } from '../storage.js';
+import { getPageById, savePage, getProjectById, saveProject } from '../storage.js';
 
 /**
- * NodeEditView — edit a node's tag and innerHTML, or delete it entirely.
+ * NodeEditView — edit a node's tag, innerHTML, attributes, or delete it.
+ * Works for both page nodes and component nodes (when componentId is given).
  */
 export class NodeEditView {
-  constructor(router, projectId, pageId, nodeId) {
+  constructor(router, projectId, pageId, nodeId, componentId) {
     this.router = router;
     this.projectId = parseInt(projectId, 10);
-    this.pageId = parseInt(pageId, 10);
+    this.pageId = pageId != null ? parseInt(pageId, 10) : null;
     this.nodeId = nodeId;
+    this.componentId = componentId != null ? parseInt(componentId, 10) : null;
   }
 
   render() {
     const container = document.createElement('div');
 
-    const page = getPageById(this.projectId, this.pageId);
-    const node = page ? page.findNodeById(this.nodeId) : null;
+    const isComp = this.componentId != null;
+    let containerObj = null; // Page or Component
+    let node = null;
+    let project = null;
 
-    if (!page || !node) {
-      const msg = document.createElement('p');
-      msg.textContent = 'Node not found.';
-      container.appendChild(msg);
+    if (isComp) {
+      project = getProjectById(this.projectId);
+      const comp = project ? project.components[this.componentId] : null;
+      containerObj = comp;
+      node = comp ? comp.findNodeById(this.nodeId) : null;
+    } else {
+      const page = getPageById(this.projectId, this.pageId);
+      containerObj = page;
+      node = page ? page.findNodeById(this.nodeId) : null;
+    }
+
+    if (!containerObj || !node) {
+      container.appendChild(document.createTextNode('Node not found.'));
 
       const back = document.createElement('button');
-      back.textContent = 'Back to page';
+      back.textContent = isComp ? 'Back to component' : 'Back to page';
       back.addEventListener('click', () =>
-        this.router.navigate(`/project/${this.projectId}/${this.pageId}`),
+        this.router.navigate(
+          isComp
+            ? `/project/${this.projectId}/components/${this.componentId}/edit`
+            : `/project/${this.projectId}/${this.pageId}`,
+        ),
       );
       container.appendChild(back);
-
       return container;
     }
+
+    const base = isComp
+      ? `#/project/${this.projectId}/components/${this.componentId}`
+      : `#/project/${this.projectId}/${this.pageId}`;
 
     const type = node.type;
     const isRegular = type === 'node';
     const isPseudo = type === 'pseudo_class' || type === 'pseudo_element';
-    const isComp = type === 'component';
+    const isCompType = type === 'component';
 
     // --- Heading ---
     const heading = document.createElement('h3');
     heading.textContent = isPseudo
       ? `Edit ${node.pseudo || type}`
-      : isComp
+      : isCompType
         ? `Edit component reference: ${node.component_name}`
         : `Edit <${node.tagName}>`;
     container.appendChild(heading);
 
-    // --- Type (read-only display) ---
+    // --- Type (read-only) ---
     const typeRow = document.createElement('div');
     typeRow.textContent = `Type: ${type}`;
     container.appendChild(typeRow);
 
-    // --- Pseudo field (only for pseudo types) ---
+    // --- Pseudo field ---
     const pseudoRow = document.createElement('div');
+    pseudoRow.style.display = isPseudo ? 'block' : 'none';
     const pseudoLabel = document.createElement('label');
     pseudoLabel.textContent = 'Pseudo';
     const pseudoInput = document.createElement('input');
@@ -61,11 +82,11 @@ export class NodeEditView {
     pseudoInput.value = node.pseudo;
     pseudoRow.appendChild(pseudoLabel);
     pseudoRow.appendChild(pseudoInput);
-    pseudoRow.style.display = isPseudo ? 'block' : 'none';
     container.appendChild(pseudoRow);
 
-    // --- Component name field (only for component type) ---
+    // --- Component name field ---
     const compRow = document.createElement('div');
+    compRow.style.display = isCompType ? 'block' : 'none';
     const compLabel = document.createElement('label');
     compLabel.textContent = 'Component name';
     const compInput = document.createElement('input');
@@ -73,12 +94,11 @@ export class NodeEditView {
     compInput.value = node.component_name;
     compRow.appendChild(compLabel);
     compRow.appendChild(compInput);
-    compRow.style.display = isComp ? 'block' : 'none';
     container.appendChild(compRow);
 
-    // --- Component variables overrides (only for component type) ---
+    // --- Component variable overrides ---
     const varsSection = document.createElement('div');
-    varsSection.style.display = isComp ? 'block' : 'none';
+    varsSection.style.display = isCompType ? 'block' : 'none';
     const varsHeading = document.createElement('h4');
     varsHeading.textContent = 'Variable overrides';
     varsSection.appendChild(varsHeading);
@@ -111,8 +131,9 @@ export class NodeEditView {
     varsSection.appendChild(addVarBtn);
     container.appendChild(varsSection);
 
-    // --- Tag name (hidden for pseudo / component types) ---
+    // --- Tag name ---
     const tagRow = document.createElement('div');
+    tagRow.style.display = isRegular ? 'block' : 'none';
     const tagLabel = document.createElement('label');
     tagLabel.textContent = 'Tag name';
     const tagInput = document.createElement('input');
@@ -120,30 +141,26 @@ export class NodeEditView {
     tagInput.value = node.tagName;
     tagRow.appendChild(tagLabel);
     tagRow.appendChild(tagInput);
-    tagRow.style.display = isRegular ? 'block' : 'none';
     container.appendChild(tagRow);
 
-    // --- innerHTML (hidden for pseudo / component types) ---
+    // --- innerHTML ---
     const htmlRow = document.createElement('div');
+    htmlRow.style.display = isRegular ? 'block' : 'none';
     const htmlLabel = document.createElement('label');
     htmlLabel.textContent = 'innerHTML';
     const htmlInput = document.createElement('textarea');
     htmlInput.value = node.attrs.textContent || '';
     htmlRow.appendChild(htmlLabel);
     htmlRow.appendChild(htmlInput);
-    htmlRow.style.display = isRegular ? 'block' : 'none';
     container.appendChild(htmlRow);
 
-    // --- Attributes (hidden for pseudo / component types) ---
+    // --- Attributes ---
     const attrsSection = document.createElement('div');
     attrsSection.style.display = isRegular ? 'block' : 'none';
-
     const attrsHeading = document.createElement('h4');
     attrsHeading.textContent = 'Attributes';
     attrsSection.appendChild(attrsHeading);
-
     const attrsContainer = document.createElement('div');
-
     const addAttrRow = (key, value) => {
       const row = document.createElement('div');
       const keyInput = document.createElement('input');
@@ -151,62 +168,50 @@ export class NodeEditView {
       keyInput.placeholder = 'Attribute name';
       keyInput.value = key;
       row.appendChild(keyInput);
-
       const valueInput = document.createElement('input');
       valueInput.type = 'text';
       valueInput.placeholder = 'Value';
       valueInput.value = value;
       row.appendChild(valueInput);
-
       const removeBtn = document.createElement('button');
-      removeBtn.textContent = '−';
+      removeBtn.textContent = '\u2212';
       removeBtn.addEventListener('click', () => row.remove());
       row.appendChild(removeBtn);
-
       attrsContainer.appendChild(row);
     };
-
     for (const [key, value] of Object.entries(node.attrs)) {
-      if (key !== 'textContent') {
-        addAttrRow(key, value);
-      }
+      if (key !== 'textContent') addAttrRow(key, value);
     }
-
     attrsSection.appendChild(attrsContainer);
-
     const addAttrBtn = document.createElement('button');
     addAttrBtn.textContent = '+';
     addAttrBtn.addEventListener('click', () => addAttrRow('', ''));
     attrsSection.appendChild(addAttrBtn);
-
     container.appendChild(attrsSection);
 
     // --- Sub-editor links ---
     const subLinks = document.createElement('div');
 
     const stylesLink = document.createElement('a');
-    stylesLink.href =
-      `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/styles`;
+    stylesLink.href = `${base}/node/${this.nodeId}/edit/styles`;
     stylesLink.textContent = 'Edit styles';
     subLinks.appendChild(stylesLink);
 
     if (isRegular) {
       const idLink = document.createElement('a');
-      idLink.href =
-        `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/id`;
+      idLink.href = `${base}/node/${this.nodeId}/edit/id`;
       idLink.textContent = 'Edit id';
       subLinks.appendChild(idLink);
 
       const classesLink = document.createElement('a');
-      classesLink.href =
-        `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/classes`;
+      classesLink.href = `${base}/node/${this.nodeId}/edit/classes`;
       classesLink.textContent = 'Edit classes';
       subLinks.appendChild(classesLink);
     }
 
     container.appendChild(subLinks);
 
-    // --- Save changes ---
+    // --- Save ---
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save changes';
     saveBtn.addEventListener('click', () => {
@@ -214,7 +219,6 @@ export class NodeEditView {
       node.component_name = compInput.value.trim();
       node.tagName = tagInput.value.trim() || 'div';
 
-      // Collect component variable overrides
       const newVars = {};
       for (const row of varsContainer.children) {
         const inputs = row.querySelectorAll('input');
@@ -227,33 +231,35 @@ export class NodeEditView {
       for (const row of attrsContainer.children) {
         const inputs = row.querySelectorAll('input');
         const key = inputs[0].value.trim();
-        if (key) {
-          newAttrs[key] = inputs[1].value;
-        }
+        if (key) newAttrs[key] = inputs[1].value;
       }
-
       const html = htmlInput.value;
-      if (html) {
-        newAttrs.textContent = html;
+      if (html) newAttrs.textContent = html;
+      node.attrs = newAttrs;
+
+      if (isComp) {
+        project.edited_at = Date.now();
+        saveProject(this.projectId, project);
+      } else {
+        savePage(this.projectId, this.pageId, containerObj);
       }
 
-      node.attrs = newAttrs;
-      savePage(this.projectId, this.pageId, page);
-      this.router.navigate(
-        `/project/${this.projectId}/${this.pageId}/node/${this.nodeId}`,
-      );
+      this.router.navigate(`${base}/node/${this.nodeId}`);
     });
     container.appendChild(saveBtn);
 
-    // --- Delete node ---
+    // --- Delete ---
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = 'Delete node';
     deleteBtn.addEventListener('click', () => {
-      page.removeNodeById(this.nodeId);
-      savePage(this.projectId, this.pageId, page);
-      this.router.navigate(
-        `/project/${this.projectId}/${this.pageId}`,
-      );
+      containerObj.removeNodeById(this.nodeId);
+      if (isComp) {
+        project.edited_at = Date.now();
+        saveProject(this.projectId, project);
+      } else {
+        savePage(this.projectId, this.pageId, containerObj);
+      }
+      this.router.navigate(isComp ? `${base}/edit` : base);
     });
     container.appendChild(deleteBtn);
 
@@ -261,9 +267,7 @@ export class NodeEditView {
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', () => {
-      this.router.navigate(
-        `/project/${this.projectId}/${this.pageId}/node/${this.nodeId}`,
-      );
+      this.router.navigate(`${base}/node/${this.nodeId}`);
     });
     container.appendChild(cancelBtn);
 
