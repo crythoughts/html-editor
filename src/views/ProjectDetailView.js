@@ -69,6 +69,28 @@ export class ProjectDetailView {
     container.appendChild(pageList);
 
     const actions = document.createElement('div');
+
+    const exportJsonBtn = document.createElement('button');
+    exportJsonBtn.textContent = 'Export to JSON';
+    exportJsonBtn.addEventListener('click', () => {
+      this.router.navigate(`/project/${this.projectId}/export-json`);
+    });
+    actions.appendChild(exportJsonBtn);
+
+    const exportFileBtn = document.createElement('button');
+    exportFileBtn.textContent = 'Export to file';
+    exportFileBtn.addEventListener('click', () => {
+      const jsonStr = JSON.stringify(project.toJSON(), null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.name.replace(/[^a-z0-9_-]/gi, '_')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    actions.appendChild(exportFileBtn);
+
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Back to list';
     editBtn.addEventListener('click', () => {

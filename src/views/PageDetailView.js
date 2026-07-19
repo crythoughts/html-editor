@@ -92,7 +92,9 @@ export class PageDetailView {
       container.appendChild(nodeList);
     }
 
-    // --- Render button ---
+    // --- Actions ---
+    const actRow = document.createElement('div');
+
     const renderBtn = document.createElement('button');
     renderBtn.textContent = 'Render page';
     renderBtn.addEventListener('click', () => {
@@ -101,7 +103,18 @@ export class PageDetailView {
         `#/render/${this.projectId}/${this.pageId}`;
       window.open(url, '_blank');
     });
-    container.appendChild(renderBtn);
+    actRow.appendChild(renderBtn);
+
+    const exportHtmlBtn = document.createElement('button');
+    exportHtmlBtn.textContent = 'Export to HTML';
+    exportHtmlBtn.addEventListener('click', () => {
+      this.router.navigate(
+        `/project/${this.projectId}/${this.pageId}/export-html`,
+      );
+    });
+    actRow.appendChild(exportHtmlBtn);
+
+    container.appendChild(actRow);
 
     // --- Back ---
     const backBtn = document.createElement('button');

@@ -185,6 +185,39 @@ export function deleteProject(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Import validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Check that a parsed JSON object has the minimum required fields of a Project.
+ * @param {*} obj
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+export function validateProjectJson(obj) {
+  const errors = [];
+
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    errors.push('Root value must be a JSON object.');
+    return { valid: false, errors };
+  }
+
+  if (typeof obj.name !== 'string' || !obj.name.trim()) {
+    errors.push('Missing or invalid field: "name" (non-empty string).');
+  }
+  if (obj.description !== undefined && typeof obj.description !== 'string') {
+    errors.push('Invalid field: "description" must be a string.');
+  }
+  if (obj.author !== undefined && typeof obj.author !== 'string') {
+    errors.push('Invalid field: "author" must be a string.');
+  }
+  if (!Array.isArray(obj.pages)) {
+    errors.push('Missing or invalid field: "pages" (array).');
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+// ---------------------------------------------------------------------------
 // Page helpers
 // ---------------------------------------------------------------------------
 

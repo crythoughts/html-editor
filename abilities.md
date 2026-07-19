@@ -40,6 +40,9 @@ Additional helpers:
   setting (`'incremental'` or `'uuid'`). The counter for incremental mode is
   persisted in `localStorage` under `node_id_counter`.
 - **`getUuidType()`** / **`setUuidType(type)`** — get or set the id strategy.
+- **`validateProjectJson(obj)`** — validates a parsed JSON object has the
+  required Project fields (`name`, `pages` array, etc.). Returns
+  `{ valid, errors[] }`.
 
 ## 4. Hash-based router (`src/router.js`)
 
@@ -49,35 +52,45 @@ The router extracts parameters and dispatches to the registered handler.
 
 Available routes:
 
-| Route                               | View               | Description                            |
-|-------------------------------------|--------------------|----------------------------------------|
-| `#/`                                | ProjectListView    | List all projects                      |
-| `#/create`                          | ProjectCreateView  | Form to create a new project           |
-| `#/project/:pid`                    | ProjectDetailView  | View / manage a single project         |
-| `#/project/:pid/:pageId`            | PageDetailView     | View / edit a single page              |
-| `#/project/:pid/:pageId/node/create`       | NodeCreateView     | Create a top-level node                 |
-| `#/project/:pid/:pageId/node/:nid/create`  | NodeCreateView     | Create a child node under :nid          |
-| `#/project/:pid/:pageId/node/:nid/edit`    | NodeEditView       | Edit / delete node :nid                 |
-| `#/project/:pid/:pageId/node/:nid`         | NodeDetailView     | Inspect a node and its children         |
-| `#/render/:pid/:pageId`             | RenderView         | Full rendered output preview           |
+| Route                                       | View                | Description                            |
+|---------------------------------------------|---------------------|----------------------------------------|
+| `#/`                                        | ProjectListView     | List all projects                      |
+| `#/create`                                  | ProjectCreateView   | Form to create a new project           |
+| `#/import`                                  | ProjectImportView   | Import a project from JSON             |
+| `#/project/:pid`                            | ProjectDetailView   | View / manage a single project         |
+| `#/project/:pid/export-json`                | ProjectExportJsonView | View / download project as JSON      |
+| `#/project/:pid/:pageId`                    | PageDetailView      | View / edit a single page              |
+| `#/project/:pid/:pageId/export-html`        | PageExportHtmlView  | View / download page as HTML           |
+| `#/project/:pid/:pageId/node/create`        | NodeCreateView      | Create a top-level node                |
+| `#/project/:pid/:pageId/node/:nid/create`   | NodeCreateView      | Create a child node under :nid         |
+| `#/project/:pid/:pageId/node/:nid/edit`     | NodeEditView        | Edit / delete node :nid                |
+| `#/project/:pid/:pageId/node/:nid`          | NodeDetailView      | Inspect a node and its children        |
+| `#/render/:pid/:pageId`                     | RenderView          | Full rendered output preview           |
 
 ## 5. View layer (`src/views/`)
 
 Four plain-DOM views that render into the `#app` mount point:
 
-- **ProjectListView** — shows a list of all saved projects with delete buttons
-  and a "New Project" button.
+- **ProjectListView** — shows a list of all saved projects with delete buttons,
+  a **+ New Project** button, and an **Import from JSON** button.
 - **ProjectCreateView** — form with fields for name, description, author, and
   initial page title. On save, creates a `Project` with a demo `Page` and
   navigates to the detail view.
+- **ProjectImportView** — textarea to paste a project JSON string, validates
+  the required fields (`name`, `pages`, etc.), and on success restores the
+  project via `restoreInstance()` and adds it to the project list.
 - **ProjectDetailView** — displays project metadata (name, description, author,
   timestamps, page count). Lists pages as clickable links to the page detail.
-  Provides **Back to list** and **Delete** actions.
+  Provides **Export to JSON** (navigates to a view with pretty-printed JSON),
+  **Export to file** (triggers a `.json` file download directly),
+  **Back to list**, and **Delete** actions.
+- **ProjectExportJsonView** — displays the serialised project as
+  pretty-printed JSON inside a `<pre>` block. Provides a **Download as file**
+  button that triggers a `.json` file download.
 - **PageDetailView** — displays a single page. Provides an editable title
   field with a **Save title** button, a **+ Create node** link to add a
   top-level node, a list of top-level nodes as clickable links to their node
-  detail view, and a **Render page** button that opens the rendered output
-  for this specific page in a new tab.
+  detail view, and **Render page** / **Export to HTML** buttons.
 - **NodeDetailView** — displays a node's properties: tag name, ID,
   attributes, a **+ Create child node** link, an **Edit node** link to modify
   or delete the node, and a recursive list of child nodes (each is a
@@ -89,6 +102,10 @@ Four plain-DOM views that render into the `#app` mount point:
 - **NodeEditView** — form to edit a node's tag name and innerHTML.
   Provides a **Save changes** button and a **Delete node** button that
   removes the node from the tree and navigates back to the page.
+- **PageExportHtmlView** — serialises a page's rendered DOM into an HTML
+  string (via `Page.render()` + `innerHTML`), displayed inside a `<pre>`
+  block. Provides a **Download as file** button that triggers a `.html`
+  file download.
 - **RenderView** — renders a specific page of a project as real DOM elements
   (using `Page.render()` internals). Designed to be opened in a separate tab
   for a clean, unstyled preview.

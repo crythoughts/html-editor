@@ -22,6 +22,13 @@ export class ProjectListView {
     });
     container.appendChild(createLink);
 
+    const importLink = document.createElement('button');
+    importLink.textContent = 'Import from JSON';
+    importLink.addEventListener('click', () => {
+      this.router.navigate('/import');
+    });
+    container.appendChild(importLink);
+
     const projects = getProjects();
 
     if (projects.length === 0) {
