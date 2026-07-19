@@ -68,6 +68,11 @@ export class PageDetailView {
     nodesHeading.textContent = `Top-level nodes (${page.items.length})`;
     container.appendChild(nodesHeading);
 
+    const createNodeLink = document.createElement('a');
+    createNodeLink.href = `#/project/${this.projectId}/${this.pageId}/node/create`;
+    createNodeLink.textContent = '+ Create node';
+    container.appendChild(createNodeLink);
+
     if (page.items.length === 0) {
       const empty = document.createElement('p');
       empty.textContent = 'No nodes yet.';

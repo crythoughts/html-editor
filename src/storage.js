@@ -71,6 +71,53 @@ function loadItem(key) {
 }
 
 // ---------------------------------------------------------------------------
+// Node ID generation  (controlled by localStorage key 'uuid_type')
+// ---------------------------------------------------------------------------
+
+const UUID_TYPE_KEY = 'uuid_type';
+const NODE_ID_COUNTER_KEY = 'node_id_counter';
+
+/**
+ * Returns the configured id strategy.
+ *   'incremental' (default) — auto-incrementing integer stored in localStorage
+ *   'uuid'                  — crypto.randomUUID()
+ */
+export function getUuidType() {
+  return localStorage.getItem(UUID_TYPE_KEY) || 'incremental';
+}
+
+/**
+ * Set the id strategy.
+ * @param {'incremental'|'uuid'} type
+ */
+export function setUuidType(type) {
+  localStorage.setItem(UUID_TYPE_KEY, type);
+}
+
+/**
+ * Generate the next node id according to the current strategy.
+ * Incremental ids start at 1 and auto-increment.
+ */
+export function getNextNodeId() {
+  const type = getUuidType();
+  if (type === 'uuid') {
+    return crypto.randomUUID();
+  }
+  const raw = localStorage.getItem(NODE_ID_COUNTER_KEY);
+  const counter = raw ? parseInt(raw, 10) : 0;
+  const next = counter + 1;
+  localStorage.setItem(NODE_ID_COUNTER_KEY, String(next));
+  return String(next);
+}
+
+/**
+ * Reset the incremental counter (useful for testing / debugging).
+ */
+export function resetNodeIdCounter() {
+  localStorage.removeItem(NODE_ID_COUNTER_KEY);
+}
+
+// ---------------------------------------------------------------------------
 // Project-specific CRUD
 // ---------------------------------------------------------------------------
 

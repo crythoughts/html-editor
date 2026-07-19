@@ -72,6 +72,23 @@ export class NodeDetailView {
       container.appendChild(attrList);
     }
 
+    // --- Actions ---
+    const actions = document.createElement('div');
+
+    const createChildLink = document.createElement('a');
+    createChildLink.href =
+      `#/project/${this.projectId}/${this.pageId}/node/${node.id}/create`;
+    createChildLink.textContent = '+ Create child node';
+    actions.appendChild(createChildLink);
+
+    const editLink = document.createElement('a');
+    editLink.href =
+      `#/project/${this.projectId}/${this.pageId}/node/${node.id}/edit`;
+    editLink.textContent = 'Edit node';
+    actions.appendChild(editLink);
+
+    container.appendChild(actions);
+
     // --- Children (items) ---
     const childrenHeading = document.createElement('h4');
     childrenHeading.textContent = `Children (${node.items.length})`;

@@ -48,6 +48,35 @@ export class Page extends Serializable {
     }
     return null;
   }
+
+  /**
+   * Removes a node (by id) from the tree, searching all nesting levels.
+   * Returns true if found and removed, false otherwise.
+   */
+  removeNodeById(nodeId) {
+    const idx = this.items.findIndex((item) => item.id === nodeId);
+    if (idx !== -1) {
+      this.items.splice(idx, 1);
+      return true;
+    }
+    for (const item of this.items) {
+      if (this._removeFromTree(item, nodeId)) return true;
+    }
+    return false;
+  }
+
+  /** @private */
+  _removeFromTree(node, nodeId) {
+    const idx = node.items.findIndex((child) => child.id === nodeId);
+    if (idx !== -1) {
+      node.items.splice(idx, 1);
+      return true;
+    }
+    for (const child of node.items) {
+      if (this._removeFromTree(child, nodeId)) return true;
+    }
+    return false;
+  }
 }
 
 registerType('Page', Page);

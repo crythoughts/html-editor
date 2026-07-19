@@ -1,10 +1,10 @@
 import { Serializable } from './Serializable.js';
-import { registerType } from '../storage.js';
+import { registerType, getNextNodeId } from '../storage.js';
 
 /**
  * Node represents a single DOM-like element in the page tree.
  *
- * @property {string}  id       — unique random identifier (UUID v4)
+ * @property {string}  id       — unique identifier (incremental number or UUID)
  * @property {string}  tagName  — HTML tag name (e.g. 'div', 'p', 'h1')
  * @property {Object}  attrs   — key/value map of HTML attributes
  * @property {Node[]}  items   — child nodes nested inside this node
@@ -12,7 +12,7 @@ import { registerType } from '../storage.js';
 export class Node extends Serializable {
   constructor(tagName = 'div', attrs = {}) {
     super();
-    this.id = crypto.randomUUID();
+    this.id = getNextNodeId();
     this.tagName = tagName;
     this.attrs = { ...attrs };
     this.items = [];

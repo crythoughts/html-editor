@@ -14,6 +14,8 @@ import { ProjectCreateView } from './views/ProjectCreateView.js';
 import { ProjectDetailView } from './views/ProjectDetailView.js';
 import { PageDetailView } from './views/PageDetailView.js';
 import { NodeDetailView } from './views/NodeDetailView.js';
+import { NodeCreateView } from './views/NodeCreateView.js';
+import { NodeEditView } from './views/NodeEditView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -43,6 +45,27 @@ router.add('/project/:id', (params) => {
 
 router.add('/project/:pid/:pageId', (params) => {
   const view = new PageDetailView(router, params.pid, params.pageId);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+// IMPORTANT: literal routes (create, edit) must be registered BEFORE
+// the parameterised :nid route so they match first.
+
+router.add('/project/:pid/:pageId/node/create', (params) => {
+  const view = new NodeCreateView(router, params.pid, params.pageId);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/:pageId/node/:nid/create', (params) => {
+  const view = new NodeCreateView(router, params.pid, params.pageId, params.nid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/:pageId/node/:nid/edit', (params) => {
+  const view = new NodeEditView(router, params.pid, params.pageId, params.nid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });
