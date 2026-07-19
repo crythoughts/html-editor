@@ -11,6 +11,7 @@ import { registerType } from '../storage.js';
  * @property {number}     edited_at   — unix timestamp (ms) of last modification
  * @property {Page[]}     pages       — ordered list of pages in this project
  * @property {Component[]} components — reusable component templates
+ * @property {Palette[]}  palettes    — colour palettes (CSS custom properties)
  */
 export class Project extends Serializable {
   constructor(name = '', description = '', author = '') {
@@ -22,6 +23,7 @@ export class Project extends Serializable {
     this.edited_at = Date.now();
     this.pages = [];
     this.components = [];
+    this.palettes = [];
   }
 
   /** Adds a Page and bumps the edited_at timestamp. */

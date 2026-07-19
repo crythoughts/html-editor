@@ -9,6 +9,8 @@ import './models/Page.js';
 import './models/Node.js';
 import './models/Variable.js';
 import './models/Component.js';
+import './models/Color.js';
+import './models/Palette.js';
 
 import { Router } from './router.js';
 import { ProjectListView } from './views/ProjectListView.js';
@@ -28,6 +30,9 @@ import { ComponentListView } from './views/ComponentListView.js';
 import { ComponentCreateView } from './views/ComponentCreateView.js';
 import { ComponentDetailView } from './views/ComponentDetailView.js';
 import { ComponentEditView } from './views/ComponentEditView.js';
+import { PaletteListView } from './views/PaletteListView.js';
+import { PaletteCreateView } from './views/PaletteCreateView.js';
+import { PaletteEditView } from './views/PaletteEditView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -91,6 +96,25 @@ router.add('/project/:pid/components/:cid', (params) => {
 
 router.add('/project/:pid/components/:cid/edit', (params) => {
   const view = new ComponentEditView(router, params.pid, params.cid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+// --- Palette routes ---
+router.add('/project/:pid/palettes', (params) => {
+  const view = new PaletteListView(router, params.pid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/palettes/create', (params) => {
+  const view = new PaletteCreateView(router, params.pid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/palettes/:palId', (params) => {
+  const view = new PaletteEditView(router, params.pid, params.palId);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

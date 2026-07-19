@@ -49,6 +49,7 @@ export class ProjectDetailView {
     addMeta('Edited', new Date(project.edited_at).toLocaleString(navigator.language));
     addMeta('Pages', String(project.pages.length));
     addMeta('Components', String((project.components || []).length));
+    addMeta('Palettes', String((project.palettes || []).length));
     container.appendChild(meta);
 
     // --- Pages list ---
@@ -92,12 +93,19 @@ export class ProjectDetailView {
     });
     actions.appendChild(exportFileBtn);
 
-    const compBtn = document.createElement('button');
+const compBtn = document.createElement('button');
     compBtn.textContent = 'Components';
     compBtn.addEventListener('click', () => {
       this.router.navigate(`/project/${this.projectId}/components`);
     });
     actions.appendChild(compBtn);
+
+    const palBtn = document.createElement('button');
+    palBtn.textContent = 'Palettes';
+    palBtn.addEventListener('click', () => {
+      this.router.navigate(`/project/${this.projectId}/palettes`);
+    });
+    actions.appendChild(palBtn);
 
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Back to list';

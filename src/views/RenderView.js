@@ -29,14 +29,34 @@ export class RenderView {
             return container;
         }
 
-        // Render the page passing project-level components for resolution
         const page = project.pages[this.pageId];
 
         document.title = page.title;
+
+        // Inject palette CSS variables from enabled palettes
+        const cssVars = this._paletteCSS(project.palettes);
+        if (cssVars) {
+          const style = document.createElement('style');
+          style.textContent = cssVars;
+          container.appendChild(style);
+        }
 
         const fragment = page.render(project.components);
         container.appendChild(fragment);
 
         return container;
+  }
+
+  /** Generate :root CSS custom-property block from enabled palettes. */
+  _paletteCSS(palettes) {
+    const enabled = palettes.filter((p) => p.enabled);
+    if (enabled.length === 0) return '';
+    const lines = [];
+    for (const pal of enabled) {
+      for (const col of pal.colors) {
+        lines.push(`  --${col.id}: ${col.value};`);
+      }
+    }
+    return `:root {\n${lines.join('\n')}\n}`;
   }
 }

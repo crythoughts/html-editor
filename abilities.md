@@ -29,6 +29,12 @@ Three domain classes that mirror the structure of an HTML document:
   `Variable`). Stored inside `Project.components`.
 - **`Variable`** — a typed parameter (`src/models/Variable.js`) with `name`,
   `type` (`'str'` or `'int'`), and `default` value.
+- **`Palette`** — a named collection of colours (`src/models/Palette.js`)
+  with an immutable `id` (slug), `name`, `colors` (array of `Color`), and
+  `enabled` flag. When enabled, its colours are emitted as CSS custom
+  properties (`--color-id`) in a `:root { }` block during rendering.
+- **`Color`** — a single colour entry (`src/models/Color.js`) with
+  immutable `id` (slug), `name`, and `value` (hex string).
 - **`Page`** — a single "document" with a `title` and a flat list of top-level
   `Node` items. Provides a `render()` method that returns a `DocumentFragment`.
 - **`Node`** — a tree node representing an HTML element. Carries a unique
@@ -76,6 +82,9 @@ Available routes:
 | `#/import`                                  | ProjectImportView   | Import a project from JSON             |
 | `#/project/:pid`                            | ProjectDetailView   | View / manage a single project         |
 | `#/project/:pid/export-json`                | ProjectExportJsonView | View / download project as JSON      |
+| `#/project/:pid/palettes`                   | PaletteListView     | List colour palettes                    |
+| `#/project/:pid/palettes/create`            | PaletteCreateView   | Create a new palette                    |
+| `#/project/:pid/palettes/:palId`            | PaletteEditView     | Edit palette name, colours, toggle      |
 | `#/project/:pid/components`                 | ComponentListView   | List project components                 |
 | `#/project/:pid/components/create`          | ComponentCreateView | Create a new component                 |
 | `#/project/:pid/components/:cid`            | ComponentDetailView | View component details                 |
@@ -149,6 +158,14 @@ Four plain-DOM views that render into the `#app` mount point:
 - **NodeClassesView** — editor for the node's `class` HTML attribute
   (space-separated class names). Works for both page and component
   contexts.
+- **PaletteListView** — lists all palettes with their colour count and
+  enabled/disabled status. Each palette has an **Enable / Disable** toggle
+  that updates immediately via `saveProject()`.
+- **PaletteCreateView** — form to create a new palette: name input and
+  colour rows (name + `<input type="color">`) with +/- buttons.
+- **PaletteEditView** — edit a palette: immutable CSS variable prefix,
+  enabled checkbox, name input, colour rows with immutable ID labels and
+  colour pickers. Provides **Save**, **Delete palette**, and **Cancel**.
 - **ComponentListView** — lists all components in a project with links to
   view / edit each.
 - **ComponentCreateView** — form to create a new component with a name,
