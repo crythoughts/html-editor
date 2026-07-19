@@ -7,6 +7,7 @@ import { registerType, getNextNodeId } from '../storage.js';
  * @property {string}  id       — unique identifier (incremental number or UUID)
  * @property {string}  tagName  — HTML tag name (e.g. 'div', 'p', 'h1')
  * @property {Object}  attrs   — key/value map of HTML attributes
+ * @property {Object}  styles  — key/value map of CSS properties (kebab-case)
  * @property {Node[]}  items   — child nodes nested inside this node
  */
 export class Node extends Serializable {
@@ -15,6 +16,7 @@ export class Node extends Serializable {
     this.id = getNextNodeId();
     this.tagName = tagName;
     this.attrs = { ...attrs };
+    this.styles = {};
     this.items = [];
   }
 
@@ -26,6 +28,11 @@ export class Node extends Serializable {
    */
   toDOM() {
     const el = document.createElement(this.tagName);
+
+    // Apply inline styles
+    for (const [prop, value] of Object.entries(this.styles)) {
+      el.style.setProperty(prop, value);
+    }
 
     // Separate textContent from regular HTML attributes
     let textContent = null;

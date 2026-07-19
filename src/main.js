@@ -19,6 +19,9 @@ import { PageExportHtmlView } from './views/PageExportHtmlView.js';
 import { NodeDetailView } from './views/NodeDetailView.js';
 import { NodeCreateView } from './views/NodeCreateView.js';
 import { NodeEditView } from './views/NodeEditView.js';
+import { NodeStylesView } from './views/NodeStylesView.js';
+import { NodeIdView } from './views/NodeIdView.js';
+import { NodeClassesView } from './views/NodeClassesView.js';
 import { RenderView } from './views/RenderView.js';
 
 const app = document.getElementById('app');
@@ -89,6 +92,24 @@ router.add('/project/:pid/:pageId/node/:nid/create', (params) => {
 
 router.add('/project/:pid/:pageId/node/:nid/edit', (params) => {
   const view = new NodeEditView(router, params.pid, params.pageId, params.nid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/:pageId/node/:nid/edit/styles', (params) => {
+  const view = new NodeStylesView(router, params.pid, params.pageId, params.nid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/:pageId/node/:nid/edit/id', (params) => {
+  const view = new NodeIdView(router, params.pid, params.pageId, params.nid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/:pageId/node/:nid/edit/classes', (params) => {
+  const view = new NodeClassesView(router, params.pid, params.pageId, params.nid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

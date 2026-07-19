@@ -23,9 +23,11 @@ Three domain classes that mirror the structure of an HTML document:
   `Node` items. Provides a `render()` method that returns a `DocumentFragment`.
 - **`Node`** — a tree node representing an HTML element. Carries a unique
   `id` (incremental integer string by default, or UUID v4 when `uuid_type` is
-  set to `'uuid'`), `tagName`, an `attrs` dictionary, and a recursive `items`
-  array of child `Node` objects. Provides `toDOM()` which produces a real
-  `HTMLElement` subtree.
+  set to `'uuid'`), `tagName`, an `attrs` dictionary, a `styles` dictionary
+  (CSS property / value pairs), and a recursive `items` array of child `Node`
+  objects. Provides `toDOM()` which produces a real `HTMLElement` subtree,
+  applying both `attrs` (as HTML attributes) and `styles` (via
+  `el.style.setProperty()`).
 
 ## 3. LocalStorage CRUD (`src/storage.js`)
 
@@ -64,6 +66,9 @@ Available routes:
 | `#/project/:pid/:pageId/node/create`        | NodeCreateView      | Create a top-level node                |
 | `#/project/:pid/:pageId/node/:nid/create`   | NodeCreateView      | Create a child node under :nid         |
 | `#/project/:pid/:pageId/node/:nid/edit`     | NodeEditView        | Edit / delete node :nid                |
+| `#/.../node/:nid/edit/styles`               | NodeStylesView      | Edit inline styles (key/value pairs)   |
+| `#/.../node/:nid/edit/id`                   | NodeIdView          | Edit the HTML id attribute             |
+| `#/.../node/:nid/edit/classes`              | NodeClassesView     | Edit class attribute (space-separated) |
 | `#/project/:pid/:pageId/node/:nid`          | NodeDetailView      | Inspect a node and its children        |
 | `#/render/:pid/:pageId`                     | RenderView          | Full rendered output preview           |
 
@@ -99,9 +104,18 @@ Four plain-DOM views that render into the `#app` mount point:
 - **NodeCreateView** — form to create a new node. Fields: tag name and
   innerHTML. The node is added as a top-level page item or as a child of a
   specific parent node, depending on which route triggered the view.
-- **NodeEditView** — form to edit a node's tag name and innerHTML.
-  Provides a **Save changes** button and a **Delete node** button that
-  removes the node from the tree and navigates back to the page.
+- **NodeEditView** — form to edit a node's tag name, innerHTML, and
+  arbitrary attributes (key/value rows with +/- buttons). Provides links
+  to dedicated sub-editors for **styles**, **id**, and **classes**.
+  Also provides a **Save changes** button and a **Delete node** button.
+- **NodeStylesView** — dedicated editor for a node's inline `styles`
+  dictionary. Each style is a row with CSS property and value inputs, plus
+  +/- buttons for adding / removing entries.
+- **NodeIdView** — dedicated editor for the node's `id` HTML attribute.
+  Simple text input that updates `attrs.id`.
+- **NodeClassesView** — dedicated editor for the node's `class` HTML
+  attribute. A single text input accepts space-separated class names and
+  updates `attrs.class`.
 - **PageExportHtmlView** — serialises a page's rendered DOM into an HTML
   string (via `Page.render()` + `innerHTML`), displayed inside a `<pre>`
   block. Provides a **Download as file** button that triggers a `.html`

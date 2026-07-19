@@ -103,6 +103,29 @@ export class NodeEditView {
     addAttrBtn.addEventListener('click', () => addAttrRow('', ''));
     container.appendChild(addAttrBtn);
 
+    // --- Links to dedicated sub-editors ---
+    const subLinks = document.createElement('div');
+
+    const stylesLink = document.createElement('a');
+    stylesLink.href =
+      `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/styles`;
+    stylesLink.textContent = 'Edit styles';
+    subLinks.appendChild(stylesLink);
+
+    const idLink = document.createElement('a');
+    idLink.href =
+      `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/id`;
+    idLink.textContent = 'Edit id';
+    subLinks.appendChild(idLink);
+
+    const classesLink = document.createElement('a');
+    classesLink.href =
+      `#/project/${this.projectId}/${this.pageId}/node/${this.nodeId}/edit/classes`;
+    classesLink.textContent = 'Edit classes';
+    subLinks.appendChild(classesLink);
+
+    container.appendChild(subLinks);
+
     // --- Save changes ---
     const saveBtn = document.createElement('button');
     saveBtn.textContent = 'Save changes';
