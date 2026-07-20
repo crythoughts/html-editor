@@ -105,6 +105,7 @@ export class PageEditor {
   _onClick(e) {
     if (this.mode === 'selection') this._onClickSelection(e);
     else if (this.mode === 'text') this._onClickText(e);
+    else if (this.mode === 'color') this._onClickColor(e);
   }
 
   // -------------------------------------------------------------------
@@ -235,6 +236,118 @@ export class PageEditor {
 
     this._editingEl = null;
     this._editingNodeId = null;
+  }
+
+  // -------------------------------------------------------------------
+  // Color mode — floating panel for stroke / fill
+  // -------------------------------------------------------------------
+
+  _onClickColor(e) {
+    const target = e.target.closest('[data-node-id]');
+    if (!target) return;
+    const nodeId = target.dataset.nodeId;
+    this._showColorPanel(nodeId, target);
+  }
+
+  _showColorPanel(nodeId, el) {
+    this._hideCtxMenu();
+
+    const panel = document.createElement('div');
+    panel.style.cssText =
+      'position:fixed; background:#fff; color:#000; border:1px solid #999; ' +
+      'border-radius:6px; padding:12px; box-shadow:2px 2px 12px rgba(0,0,0,0.25); ' +
+      'z-index:10001; display:flex; flex-direction:column; gap:8px; min-width:200px;';
+
+    // Position near the element
+    const rect = el.getBoundingClientRect();
+    panel.style.left = `${rect.right + 8}px`;
+    panel.style.top = `${rect.top}px`;
+    // Keep on screen
+    if (rect.right + 220 > window.innerWidth) {
+      panel.style.left = `${rect.left - 220}px`;
+    }
+
+    const curStyles = getComputedStyle(el);
+
+    // Border width
+    const bwRow = document.createElement('label');
+    bwRow.style.cssText = 'display:flex; flex-direction:column; gap:2px;';
+    bwRow.innerHTML = '<span>Border width</span>';
+    const bwInp = document.createElement('input');
+    bwInp.type = 'text';
+    bwInp.value = parseFloat(curStyles.borderWidth) || 0;
+    bwRow.appendChild(bwInp);
+    panel.appendChild(bwRow);
+
+    // Border color
+    const bcRow = document.createElement('label');
+    bcRow.style.cssText = 'display:flex; flex-direction:column; gap:2px;';
+    bcRow.innerHTML = '<span>Border color</span>';
+    const bcInp = document.createElement('input');
+    bcInp.type = 'color';
+    bcInp.value = this._toHex(curStyles.borderColor) || '#000000';
+    bcRow.appendChild(bcInp);
+    panel.appendChild(bcRow);
+
+    // Fill (background)
+    const bgRow = document.createElement('label');
+    bgRow.style.cssText = 'display:flex; flex-direction:column; gap:2px;';
+    bgRow.innerHTML = '<span>Fill</span>';
+    const bgInp = document.createElement('input');
+    bgInp.type = 'color';
+    bgInp.value = this._toHex(curStyles.backgroundColor) || '#ffffff';
+    bgRow.appendChild(bgInp);
+    panel.appendChild(bgRow);
+
+    // Buttons
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex; gap:4px; margin-top:4px;';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Apply';
+    saveBtn.addEventListener('click', () => {
+      const styles = {};
+      const bw = parseFloat(bwInp.value);
+      if (bw > 0) {
+        styles['border-width'] = bw + 'px';
+        styles['border-style'] = 'solid';
+        styles['border-color'] = bcInp.value;
+      } else {
+        styles['border-width'] = '0';
+        styles['border-style'] = 'none';
+      }
+      styles['background-color'] = bgInp.value;
+      this._onSaveStyles(nodeId, styles);
+      panel.remove();
+    });
+    btnRow.appendChild(saveBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => panel.remove());
+    btnRow.appendChild(cancelBtn);
+
+    panel.appendChild(btnRow);
+    document.body.appendChild(panel);
+
+    // Close on click outside
+    setTimeout(() => {
+      document.addEventListener('click', function _close(e) {
+        if (!panel.contains(e.target)) {
+          panel.remove();
+          document.removeEventListener('click', _close);
+        }
+      });
+    }, 0);
+  }
+
+  /** Convert any CSS colour to hex. */
+  _toHex(color) {
+    if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') return '';
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.fillStyle = color;
+    const hex = ctx.fillStyle;
+    return hex;
   }
 
   // -------------------------------------------------------------------

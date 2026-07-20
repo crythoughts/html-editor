@@ -257,14 +257,15 @@ window.addEventListener('editor-context', (e) => {
 const toolCursor = document.getElementById('tool-cursor');
 const toolInfo = document.getElementById('tool-info');
 const toolSelect = document.getElementById('tool-select');
-const toolTransform = document.getElementById('tool-transform');
 const toolText = document.getElementById('tool-text');
+const toolTransform = document.getElementById('tool-transform');
+const toolColor = document.getElementById('tool-color');
 
 function setToolMode(mode) {
   pageEditor.setMode(mode);
 }
 
-[toolCursor, toolInfo, toolSelect, toolTransform, toolText].forEach((btn) => {
+[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor].forEach((btn) => {
   if (btn) btn.disabled = false;
 });
 
@@ -282,6 +283,9 @@ if (toolTransform) {
 }
 if (toolText) {
   toolText.addEventListener('click', () => setToolMode('text'));
+}
+if (toolColor) {
+  toolColor.addEventListener('click', () => setToolMode('color'));
 }
 
 // Default to cursor mode

@@ -254,6 +254,9 @@ Three tool buttons (disabled placeholders for now):
 - **TEXT** — click an element in the preview to edit its text content inline.
   The element becomes editable (`contentEditable`), text is saved on blur.
   A green outline indicates the element being edited.
+- **COLOR** — click an element to open a floating panel. Set **border width**,
+  **border color**, and **fill** (background). Pick colours via `<input type="color">`.
+  **Apply** saves the styles to the node's `styles` dictionary.
 - **TRANSFORM** — drag to transform elements. Default: move element (free if
   `position: absolute/fixed`, constrained via `translate` otherwise). Ctrl:
   resize width/height. Shift: rotate. Changes are persisted to the node's
