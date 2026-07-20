@@ -257,6 +257,9 @@ Three tool buttons (disabled placeholders for now):
 - **COLOR** — click an element to open a floating panel. Set **border width**,
   **border color**, and **fill** (background). Pick colours via `<input type="color">`.
   **Apply** saves the styles to the node's `styles` dictionary.
+- **PEN** — click to place points. Lines connect consecutive points.
+  Click an existing point (not the last) or double-click the last point to
+  finalise the shape as an SVG `<polygon>`. The SVG is inserted into the page.
 - **TRANSFORM** — drag to transform elements. Default: move element (free if
   `position: absolute/fixed`, constrained via `translate` otherwise). Ctrl:
   resize width/height. Shift: rotate. Changes are persisted to the node's

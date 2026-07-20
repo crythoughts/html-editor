@@ -15,13 +15,15 @@ export class PageEditor {
    * @param {Function}    onSaveStyles     — (nodeId, styles)
    * @param {Function}    onContextPreset  — (nodeId, presetName)
    * @param {Function}    onEditText       — (nodeId, text) — called when inline text editing finishes
+   * @param {Function}    onPenFinish      — (points) — called when a pen drawing is completed
    */
-  constructor(previewEl, onNavigate, onSaveStyles, onContextPreset, onEditText) {
+  constructor(previewEl, onNavigate, onSaveStyles, onContextPreset, onEditText, onPenFinish) {
     this.previewEl = previewEl;
     this._onNavigate = onNavigate;
     this._onSaveStyles = onSaveStyles;
     this._onContextPreset = onContextPreset;
     this._onEditText = onEditText;
+    this._onPenFinish = onPenFinish;
     this.mode = 'cursor';
     this._selectedIds = [];
     this._hoverLabel = null;
@@ -30,6 +32,8 @@ export class PageEditor {
     this._ctxMenu = null;
     this._editingNodeId = null;
     this._editingEl = null;
+    this._penPoints = []; // {x, y}
+    this._penOverlay = null;
 
     this._boundClick = (e) => this._onClick(e);
     this._boundOver = (e) => this._onOver(e);
@@ -46,6 +50,7 @@ export class PageEditor {
   setMode(mode) {
     if (this.mode === mode) return;
     this._finishEditing();
+    this._cancelPen();
     this.mode = mode;
     this.clearSelection();
     this._endTransform();
@@ -106,6 +111,7 @@ export class PageEditor {
     if (this.mode === 'selection') this._onClickSelection(e);
     else if (this.mode === 'text') this._onClickText(e);
     else if (this.mode === 'color') this._onClickColor(e);
+    else if (this.mode === 'pen') this._onClickPen(e);
   }
 
   // -------------------------------------------------------------------
@@ -351,8 +357,102 @@ export class PageEditor {
   }
 
   // -------------------------------------------------------------------
-  // Context menu
+  // Pen mode — draw SVG polygons point by point
   // -------------------------------------------------------------------
+
+  _onClickPen(e) {
+    const rect = this.previewEl.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const hitIdx = this._penPoints.findIndex(
+      (p) => Math.abs(p.x - x) < 8 && Math.abs(p.y - y) < 8,
+    );
+
+    if (hitIdx >= 0 && hitIdx !== this._penPoints.length - 1) {
+      this._finishPen();
+      return;
+    }
+
+    if (this._penPoints.length > 0 && hitIdx === this._penPoints.length - 1) {
+      this._finishPen();
+      return;
+    }
+
+    this._penPoints.push({ x, y });
+    this._updatePenOverlay();
+  }
+
+  _updatePenOverlay() {
+    if (!this._penOverlay) {
+      this._penOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      this._penOverlay.style.cssText =
+        'position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:999;';
+      this.previewEl.style.position = 'relative';
+      this.previewEl.appendChild(this._penOverlay);
+    }
+    this._penOverlay.innerHTML = '';
+    const pts = this._penPoints;
+    if (pts.length < 2) return;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    line.setAttribute('points', pts.map((p) => `${p.x},${p.y}`).join(' '));
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', '#3b82f6');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '4 2');
+    this._penOverlay.appendChild(line);
+
+    for (const p of pts) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', p.x);
+      circle.setAttribute('cy', p.y);
+      circle.setAttribute('r', '4');
+      circle.setAttribute('fill', '#3b82f6');
+      circle.setAttribute('stroke', '#fff');
+      circle.setAttribute('stroke-width', '1.5');
+      this._penOverlay.appendChild(circle);
+    }
+  }
+
+  _finishPen() {
+    const pts = this._penPoints;
+    this._cancelPen();
+    if (pts.length < 2) return;
+
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    const w = maxX - minX || 100;
+    const h = maxY - minY || 100;
+    const relPts = pts.map((p) => ({ x: p.x - minX, y: p.y - minY }));
+    const pointsStr = relPts.map((p) => `${p.x},${p.y}`).join(' ');
+
+    this._onPenFinish({
+      svgAttrs: { viewBox: `0 0 ${w} ${h}`, width: String(w), height: String(h) },
+      shapeAttrs: {
+        points: pointsStr,
+        fill: 'rgba(59,130,246,0.2)',
+        stroke: '#3b82f6',
+        'stroke-width': '2',
+      },
+    });
+  }
+
+  _cancelPen() {
+    this._penPoints = [];
+    if (this._penOverlay) {
+      this._penOverlay.remove();
+      this._penOverlay = null;
+    }
+  }
+
+    // -------------------------------------------------------------------
+    // Context menu
+    // -------------------------------------------------------------------
 
   showCtxMenu(nodeId, presetsArr, x, y) {
     this._hideCtxMenu();

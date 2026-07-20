@@ -17,6 +17,8 @@ export class PageDetailView {
 
     const project = getProjectById(this.projectId);
     const page = project ? project.pages[this.pageId] : null;
+    this._project = project;
+    this._page = page;
 
     if (!project || !page) {
       const msg = document.createElement('p');
@@ -122,7 +124,113 @@ export class PageDetailView {
     const treeAndDetail = document.createElement('div');
 
     const treeEl = document.createElement('div');
-    this._renderTree(treeEl, page.items, 0, base);
+    this._renderTree(treeEl, page.items, 0, base, null);
+
+    // Drag & drop support in the tree
+    let _dragId = null;
+
+    treeEl.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('[data-drag-id]');
+      if (!row) return;
+      _dragId = row.getAttribute('data-drag-id');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', _dragId);
+      row.style.opacity = '0.4';
+    });
+
+    treeEl.addEventListener('dragend', (e) => {
+      const row = e.target.closest('[data-drag-id]');
+      if (row) row.style.opacity = '';
+      treeEl.querySelectorAll('.drop-indicator').forEach((el) => el.remove());
+    });
+
+    treeEl.addEventListener('dragover', (e) => {
+      // Determine drop position: show indicator above/below the closest row
+      const row = e.target.closest('[data-drag-id]');
+      if (!row || row.getAttribute('data-drag-id') === _dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      // Show drop indicator
+      treeEl.querySelectorAll('.drop-indicator').forEach((el) => el.remove());
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const ind = document.createElement('div');
+      ind.className = 'drop-indicator';
+      ind.style.cssText = 'height:2px; background:#3b82f6; position:relative;';
+      if (e.clientY < midY) {
+        row.parentNode.insertBefore(ind, row);
+      } else {
+        row.parentNode.insertBefore(ind, row.nextSibling);
+      }
+    });
+
+    treeEl.addEventListener('dragleave', (e) => {
+      const related = e.relatedTarget;
+      if (!related || !treeEl.contains(related)) {
+        treeEl.querySelectorAll('.drop-indicator').forEach((el) => el.remove());
+      }
+    });
+
+    treeEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      treeEl.querySelectorAll('.drop-indicator').forEach((el) => el.remove());
+      const dragId = e.dataTransfer.getData('text/plain');
+      if (!dragId) return;
+
+      // Find the dragged node and its parent
+      const dragResult = this._findNodeAndParent(page, dragId);
+      if (!dragResult) return;
+      const { node: draggedNode, parent: oldParent, index: oldIdx } = dragResult;
+
+      // Determine target
+      const row = e.target.closest('[data-drag-id]');
+      let newParent = page;
+      let insertIdx = page.items.length;
+
+      if (row) {
+        const targetId = row.getAttribute('data-drag-id');
+        const parentId = row.getAttribute('data-parent-id');
+        const rect = row.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+
+        if (e.clientY < midY) {
+          // Above the row → insert before it in its parent
+          newParent = parentId ? page.findNodeById(parentId) || page : page;
+          const siblings = newParent === page ? newParent.items : newParent.items;
+          insertIdx = siblings.findIndex((n) => n.id === targetId);
+          if (insertIdx < 0) insertIdx = 0;
+        } else {
+          // Below the row → make it a child of the target row (append)
+          newParent = page.findNodeById(targetId) || page;
+          insertIdx = newParent.items.length;
+        }
+      }
+
+      // Prevent no-op (same parent, same position, same node)
+      if (oldParent === newParent) {
+        const sibs = newParent === page ? newParent.items : newParent.items;
+        const currentIdx = sibs.indexOf(draggedNode);
+        if (currentIdx >= 0 && currentIdx < insertIdx) insertIdx--;
+        if (currentIdx === insertIdx) return;
+      }
+
+      // Remove from old position
+      oldParent.items.splice(oldIdx, 1);
+
+      // Insert at new position
+      newParent.items.splice(insertIdx, 0, draggedNode);
+
+      // Persist
+      if (this._project) {
+        this._project.edited_at = Date.now();
+        saveProject(this.projectId, this._project);
+      }
+
+      // Re-render tree
+      treeEl.innerHTML = '';
+      this._renderTree(treeEl, page.items, 0, base, null);
+    });
 
     const detailPanel = document.createElement('div');
     detailPanel.id = 'detail-panel';
@@ -132,9 +240,9 @@ export class PageDetailView {
 
     // Intercept tree clicks to show detail instead of navigating
     treeEl.addEventListener('click', (e) => {
-      const row = e.target.closest('[data-node-id]');
+      const row = e.target.closest('[data-drag-id]');
       if (!row) return;
-      const nodeId = row.getAttribute('data-node-id');
+      const nodeId = row.getAttribute('data-drag-id');
       const found = page.findNodeById(nodeId);
       if (!found) return;
 
@@ -165,12 +273,15 @@ export class PageDetailView {
   }
 
   /** Recursively render the node tree into parentEl. */
-  _renderTree(parentEl, items, depth, base) {
+  _renderTree(parentEl, items, depth, base, parentId) {
     for (const node of items) {
       const row = document.createElement('div');
-      row.style.paddingLeft = `${depth * 4}px`;
+      row.style.paddingLeft = `${depth * 6}px`;
       row.style.cursor = 'pointer';
+      row.draggable = true;
+      row.setAttribute('data-drag-id', node.id);
       row.setAttribute('data-node-id', node.id);
+      if (parentId) row.setAttribute('data-parent-id', parentId);
 
       const hasChildren =
         node.items.filter(
@@ -198,9 +309,30 @@ export class PageDetailView {
           c.type === 'include',
       );
       if (realKids.length > 0) {
-        this._renderTree(parentEl, realKids, depth + 1, base);
+        this._renderTree(parentEl, realKids, depth + 1, base, node.id);
       }
     }
+  }
+
+  /** Find a node in the page tree and return { node, parent, index }. */
+  _findNodeAndParent(page, nodeId) {
+    for (let i = 0; i < page.items.length; i++) {
+      const item = page.items[i];
+      if (item.id === nodeId) return { node: item, parent: page, index: i };
+      const found = this._findInNested(item, nodeId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  _findInNested(parentNode, nodeId) {
+    for (let i = 0; i < parentNode.items.length; i++) {
+      const child = parentNode.items[i];
+      if (child.id === nodeId) return { node: child, parent: parentNode, index: i };
+      const found = this._findInNested(child, nodeId);
+      if (found) return found;
+    }
+    return null;
   }
 
   /** Render inline detail for a single node. */

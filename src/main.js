@@ -7,6 +7,7 @@
 import './models/Project.js';
 import './models/Page.js';
 import './models/Node.js';
+import { Node } from './models/Node.js';
 import './models/Variable.js';
 import './models/Component.js';
 import './models/Color.js';
@@ -279,6 +280,7 @@ const pageEditor = new PageEditor(
   // onContextPreset
   _ctxHandler,
   // onEditText: save inline text edits
+  // onEditText
   (nodeId, text) => {
     const { pid, pg } = parseRoute();
     if (pid == null || pg == null) return;
@@ -289,6 +291,22 @@ const pageEditor = new PageEditor(
     const node = page.findNodeById(nodeId);
     if (!node) return;
     node.attrs.textContent = text;
+    saveProject(pid, project);
+  },
+  // onPenFinish
+  (data) => {
+    const { pid, pg } = parseRoute();
+    if (pid == null || pg == null) return;
+    const project = getProjectById(pid);
+    if (!project) return;
+    const page = project.pages[pg];
+    if (!page) return;
+    const svg = new Node('svg', data.svgAttrs);
+    svg.styles.display = 'block';
+    const shape = new Node('polygon', data.shapeAttrs);
+    shape.undraggable = true;
+    svg.items.push(shape);
+    page.items.push(svg);
     saveProject(pid, project);
   },
 );
@@ -305,33 +323,30 @@ const toolSelect = document.getElementById('tool-select');
 const toolText = document.getElementById('tool-text');
 const toolTransform = document.getElementById('tool-transform');
 const toolColor = document.getElementById('tool-color');
+const toolPen = document.getElementById('tool-pen');
 
 function setToolMode(mode) {
   pageEditor.setMode(mode);
 }
 
-[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor].forEach((btn) => {
+[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen].forEach((btn) => {
   if (btn) btn.disabled = false;
 });
 
-if (toolCursor) {
-  toolCursor.addEventListener('click', () => setToolMode('cursor'));
-}
-if (toolInfo) {
-  toolInfo.addEventListener('click', () => setToolMode('selection'));
-}
-if (toolSelect) {
-  toolSelect.addEventListener('click', () => setToolMode('selection'));
-}
-if (toolTransform) {
-  toolTransform.addEventListener('click', () => setToolMode('transform'));
-}
-if (toolText) {
-  toolText.addEventListener('click', () => setToolMode('text'));
-}
-if (toolColor) {
-  toolColor.addEventListener('click', () => setToolMode('color'));
-}
+[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen].forEach((btn) => {
+  if (btn) btn.addEventListener('click', () => {
+    const modes = {
+      'tool-cursor': 'cursor',
+      'tool-info': 'selection',
+      'tool-select': 'selection',
+      'tool-transform': 'transform',
+      'tool-text': 'text',
+      'tool-color': 'color',
+      'tool-pen': 'pen',
+    };
+    setToolMode(modes[btn.id]);
+  });
+});
 
 // Default to cursor mode
 setToolMode('cursor');
