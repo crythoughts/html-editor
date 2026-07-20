@@ -69,6 +69,7 @@ export class FlexBlockPreset extends Preset {
 
   getTemplate(parentNode, settings) {
     const node = new Node('div');
+    node.presetName = this.name;
     node.styles.display = 'flex';
     node.styles['flex-direction'] = settings.direction || 'row';
     if (settings.gap) node.styles.gap = settings.gap;

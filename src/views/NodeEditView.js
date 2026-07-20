@@ -74,6 +74,13 @@ export class NodeEditView {
     typeRow.textContent = `Type: ${type}`;
     container.appendChild(typeRow);
 
+    // --- Preset name (if any) ---
+    if (node.presetName) {
+      const presetRow = document.createElement('div');
+      presetRow.textContent = `Preset: ${node.presetName}`;
+      container.appendChild(presetRow);
+    }
+
     // --- Pseudo field ---
     const pseudoRow = document.createElement('div');
     pseudoRow.style.display = isPseudo ? 'block' : 'none';

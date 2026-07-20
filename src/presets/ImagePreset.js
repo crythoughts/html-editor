@@ -44,6 +44,7 @@ export class ImagePreset extends Preset {
 
   getTemplate(parentNode, settings) {
     const node = new Node('img', { src: settings.src || '', alt: settings.alt || '' });
+    node.presetName = this.name;
     parentNode.items.push(node);
     return node;
   }

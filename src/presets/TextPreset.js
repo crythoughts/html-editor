@@ -62,6 +62,7 @@ export class TextPreset extends Preset {
     const content = settings.content || '';
 
     const node = new Node(tag, { textContent: content });
+    node.presetName = this.name;
     node.styles['font-size'] = size;
     parentNode.items.push(node);
     return node;

@@ -10,6 +10,7 @@ import { registerType, getNextNodeId } from '../storage.js';
  * @property {string}  tagName         — HTML tag name (e.g. 'div', 'p', 'h1')
  * @property {string}  component_name  — referenced Component name (when type='component')
  * @property {Object}  variables       — key/value overrides for Component variables
+ * @property {string}  presetName      — name of the preset that created this node (if any)
  * @property {Object}  attrs           — key/value map of HTML attributes
  * @property {Object}  styles          — key/value map of CSS properties (kebab-case)
  * @property {Node[]}  items           — child nodes nested inside this node
@@ -22,6 +23,7 @@ export class Node extends Serializable {
     this.pseudo = '';
     this.component_name = '';
     this.variables = {};
+    this.presetName = '';
     this.tagName = tagName;
     this.attrs = { ...attrs };
     this.styles = {};

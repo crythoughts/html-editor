@@ -251,10 +251,16 @@ Three tool buttons (disabled placeholders for now):
 - **INFO** — (stub) navigate to node info
 - **SELECT** — select and highlight nodes; click opens node settings, shift-click
   additive; yellow outline; hover shows `<tagname>` label above element
+- **TEXT** — click an element in the preview to edit its text content inline.
+  The element becomes editable (`contentEditable`), text is saved on blur.
+  A green outline indicates the element being edited.
 - **TRANSFORM** — drag to transform elements. Default: move element (free if
   `position: absolute/fixed`, constrained via `translate` otherwise). Ctrl:
   resize width/height. Shift: rotate. Changes are persisted to the node's
-  `styles` dictionary on mouseup.
+  `styles` dictionary on mouseup. Right-click opens a **context menu** with a
+  scrollable preset list. Clicking a preset opens its settings dialog and
+  inserts the result into the right-clicked node.
+- Nodes created by presets store `presetName` and display it in the edit view.
 
 ## 11. Preset system (`src/presets/`, `src/dialogs.js`)
 

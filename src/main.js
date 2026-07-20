@@ -115,6 +115,28 @@ function applyPreset(preset) {
   dialog.show(win);
 }
 
+/** Apply a preset to a specific target node (used from context menu). */
+function applyPresetTo(preset, target, pid, project) {
+  const win = preset.getSettingsWindow();
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', () => {
+    const settings = collectSettings(win);
+    preset.getTemplate(target, settings);
+    saveProject(pid, project);
+    dialog.hide();
+  });
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => dialog.hide());
+  const footer = document.createElement('div');
+  footer.style.marginTop = '12px';
+  footer.appendChild(saveBtn);
+  footer.appendChild(cancelBtn);
+  win.appendChild(footer);
+  dialog.show(win);
+}
+
 function showPresetList() {
   const wrapper = document.createElement('div');
 
@@ -171,6 +193,19 @@ window.addEventListener('project-saved', updatePreview);
 // ---------------------------------------------------------------------------
 // Page Editor — mode & selection
 // ---------------------------------------------------------------------------
+const _ctxHandler = (nodeId, presetName) => {
+  const { pid, pg } = parseRoute();
+  if (pid == null || pg == null) return;
+  const project = getProjectById(pid);
+  if (!project) return;
+  const page = project.pages[pg];
+  if (!page) return;
+  const target = page.findNodeById(nodeId) || page;
+  const p = presets.find(pr => pr.name === presetName);
+  if (!p) return;
+  // Show settings dialog then apply
+  applyPresetTo(p, target, pid, project);
+};
 
 const pageEditor = new PageEditor(
   preview,
@@ -196,20 +231,44 @@ const pageEditor = new PageEditor(
     }
     saveProject(pid, project);
   },
+  // onContextPreset
+  _ctxHandler,
+  // onEditText: save inline text edits
+  (nodeId, text) => {
+    const { pid, pg } = parseRoute();
+    if (pid == null || pg == null) return;
+    const project = getProjectById(pid);
+    if (!project) return;
+    const page = project.pages[pg];
+    if (!page) return;
+    const node = page.findNodeById(nodeId);
+    if (!node) return;
+    node.attrs.textContent = text;
+    saveProject(pid, project);
+  },
 );
+
+window.addEventListener('editor-context', (e) => {
+  const { nodeId, x, y } = e.detail;
+  const menuPresets = presets.map(p => ({ name: p.name }));
+  pageEditor.showCtxMenu(nodeId, menuPresets, x, y);
+});
 
 const toolCursor = document.getElementById('tool-cursor');
 const toolInfo = document.getElementById('tool-info');
 const toolSelect = document.getElementById('tool-select');
 const toolTransform = document.getElementById('tool-transform');
+const toolText = document.getElementById('tool-text');
 
 function setToolMode(mode) {
   pageEditor.setMode(mode);
-  // All buttons stay enabled — user can freely switch between modes.
 }
 
+[toolCursor, toolInfo, toolSelect, toolTransform, toolText].forEach((btn) => {
+  if (btn) btn.disabled = false;
+});
+
 if (toolCursor) {
-  toolCursor.disabled = false;
   toolCursor.addEventListener('click', () => setToolMode('cursor'));
 }
 if (toolInfo) {
@@ -220,6 +279,9 @@ if (toolSelect) {
 }
 if (toolTransform) {
   toolTransform.addEventListener('click', () => setToolMode('transform'));
+}
+if (toolText) {
+  toolText.addEventListener('click', () => setToolMode('text'));
 }
 
 // Default to cursor mode
