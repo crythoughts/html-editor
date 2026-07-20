@@ -39,6 +39,9 @@ import { PaletteEditView } from './views/PaletteEditView.js';
 import { HeadView } from './views/HeadView.js';
 import { RenderView } from './views/RenderView.js';
 import { PageEditor } from './PageEditor.js';
+import { Dialog } from './dialogs.js';
+import { presets } from './presets/index.js';
+import { collectSettings } from './presets/Preset.js';
 import {
   canUndo, canRedo, undo as histUndo, redo as histRedo,
 } from './history.js';
@@ -53,6 +56,96 @@ const renderRoot = document.getElementById('render-root');
 const toolbar = document.getElementById('toolbar');
 
 if (!app) throw new Error('Mount point #app not found.');
+
+// ---------------------------------------------------------------------------
+// Preset dialog
+// ---------------------------------------------------------------------------
+
+const dialog = new Dialog();
+
+function getContext() {
+  // Parse current hash and return { ctx, project, pid }
+  // ctx = the currently open node, or the page itself if no node is open.
+  const { pid, pg } = parseRoute();
+  if (pid == null || pg == null) return null;
+  const project = getProjectById(pid);
+  if (!project) return null;
+  const page = project.pages[pg];
+  if (!page) return null;
+
+  const m = window.location.hash.match(/\/node\/([^/]+)/);
+  const ctx = m
+    ? (page.findNodeById(m[1].split(',')[0]) || page)
+    : page;
+  return { ctx, project, pid };
+}
+
+function applyPreset(preset) {
+  const win = preset.getSettingsWindow();
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', () => {
+    const settings = collectSettings(win);
+    const context = getContext();
+    if (!context) return;
+    const newNode = preset.getTemplate(context.ctx, settings);
+    saveProject(context.pid, context.project);
+    dialog.hide();
+    if (newNode && newNode.id) {
+      const { pg } = parseRoute();
+      if (pg != null) {
+        const hash = `/project/${context.pid}/${pg}/node/${newNode.id}`;
+        window.location.hash = hash;
+      }
+    }
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => dialog.hide());
+
+  const footer = document.createElement('div');
+  footer.style.marginTop = '12px';
+  footer.appendChild(saveBtn);
+  footer.appendChild(cancelBtn);
+  win.appendChild(footer);
+
+  dialog.show(win);
+}
+
+function showPresetList() {
+  const wrapper = document.createElement('div');
+
+  const h = document.createElement('h2');
+  h.textContent = 'Presets';
+  wrapper.appendChild(h);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+
+  presets.forEach((p) => {
+    const btn = document.createElement('button');
+    btn.textContent = p.name;
+    btn.style.cssText = 'padding:8px 12px; text-align:left;';
+    btn.addEventListener('click', () => applyPreset(p));
+    list.appendChild(btn);
+  });
+
+  wrapper.appendChild(list);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Cancel';
+  closeBtn.addEventListener('click', () => dialog.hide());
+  wrapper.appendChild(closeBtn);
+
+  dialog.show(wrapper);
+}
+
+const presetAddBtn = document.getElementById('preset-add');
+if (presetAddBtn) {
+  presetAddBtn.addEventListener('click', showPresetList);
+}
 
 // ---------------------------------------------------------------------------
 // Preview — live right-side render that updates on every save

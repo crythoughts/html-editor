@@ -255,3 +255,17 @@ Three tool buttons (disabled placeholders for now):
   `position: absolute/fixed`, constrained via `translate` otherwise). Ctrl:
   resize width/height. Shift: rotate. Changes are persisted to the node's
   `styles` dictionary on mouseup.
+
+## 11. Preset system (`src/presets/`, `src/dialogs.js`)
+
+A **Dialog** modal overlay (`Dialog` class) shows preset templates. The **+**
+button next to the Projects button opens a preset picker. Available presets:
+- **Text** — configurable tag (span/p), font size, text content
+- **Flex block** — flex container with direction, gap, justify-content,
+  align-items
+- **Image** — `<img>` with src and alt
+
+Each preset extends `Preset` and implements `getSettingsWindow()` (returns a
+form DOM element) and `getTemplate(parentNode, settings)` (creates child
+nodes inside the target). The target is the currently open node (from the
+hash route), or the page itself if no node is open.
