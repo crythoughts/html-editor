@@ -112,6 +112,8 @@ export class PageEditor {
     else if (this.mode === 'text') this._onClickText(e);
     else if (this.mode === 'color') this._onClickColor(e);
     else if (this.mode === 'pen') this._onClickPen(e);
+    else if (this.mode === 'layout') this._onClickLayoutAttr(e, 'layout');
+    else if (this.mode === 'attr') this._onClickLayoutAttr(e, 'attr');
   }
 
   // -------------------------------------------------------------------
@@ -305,6 +307,16 @@ export class PageEditor {
     bgRow.appendChild(bgInp);
     panel.appendChild(bgRow);
 
+    // Text color
+    const tcRow = document.createElement('label');
+    tcRow.style.cssText = 'display:flex; flex-direction:column; gap:2px;';
+    tcRow.innerHTML = '<span>Text color</span>';
+    const tcInp = document.createElement('input');
+    tcInp.type = 'color';
+    tcInp.value = this._toHex(curStyles.color) || '#000000';
+    tcRow.appendChild(tcInp);
+    panel.appendChild(tcRow);
+
     // Buttons
     const btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex; gap:4px; margin-top:4px;';
@@ -323,6 +335,7 @@ export class PageEditor {
         styles['border-style'] = 'none';
       }
       styles['background-color'] = bgInp.value;
+      styles['color'] = tcInp.value;
       this._onSaveStyles(nodeId, styles);
       panel.remove();
     });
@@ -354,6 +367,173 @@ export class PageEditor {
     ctx.fillStyle = color;
     const hex = ctx.fillStyle;
     return hex;
+  }
+
+  // -------------------------------------------------------------------
+  // Layout / Attr mode — floating panels
+  // -------------------------------------------------------------------
+
+  _onClickLayoutAttr(e, mode) {
+    const target = e.target.closest('[data-node-id]');
+    if (!target) return;
+    const nodeId = target.dataset.nodeId;
+    if (mode === 'layout') this._showLayoutPanel(nodeId, target);
+    else this._showAttrPanel(nodeId, target);
+  }
+
+  _showLayoutPanel(nodeId, el) {
+    this._hideCtxMenu();
+    const panel = this._makePanel(el);
+    const cur = getComputedStyle(el);
+
+    const field = (label, inp) => {
+      const r = document.createElement('label');
+      r.style.cssText = 'display:flex; flex-direction:column; gap:2px;';
+      r.innerHTML = `<span>${label}</span>`;
+      r.appendChild(inp);
+      return r;
+    };
+
+    // Position
+    const posSel = document.createElement('select');
+    ['static','relative','absolute','fixed','sticky'].forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      if (v === cur.position) o.selected = true;
+      posSel.appendChild(o);
+    });
+    panel.appendChild(field('Position', posSel));
+
+    // Width
+    const wInp = document.createElement('input');
+    wInp.type = 'text'; wInp.value = cur.width;
+    panel.appendChild(field('Width', wInp));
+
+    // Height
+    const hInp = document.createElement('input');
+    hInp.type = 'text'; hInp.value = cur.height;
+    panel.appendChild(field('Height', hInp));
+
+    // Margin
+    const mInp = document.createElement('input');
+    mInp.type = 'text'; mInp.value = cur.margin;
+    panel.appendChild(field('Margin', mInp));
+
+    // Padding
+    const pInp = document.createElement('input');
+    pInp.type = 'text'; pInp.value = cur.padding;
+    panel.appendChild(field('Padding', pInp));
+
+    // Box-sizing
+    const bsSel = document.createElement('select');
+    ['content-box','border-box'].forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      if (v === cur.boxSizing) o.selected = true;
+      bsSel.appendChild(o);
+    });
+    panel.appendChild(field('Box-sizing', bsSel));
+
+    // Z-index
+    const zInp = document.createElement('input');
+    zInp.type = 'number'; zInp.value = cur.zIndex;
+    if (cur.zIndex === 'auto') zInp.value = '';
+    panel.appendChild(field('Z-index', zInp));
+
+    this._addSaveBtn(panel, nodeId, () => ({
+      position: posSel.value === 'static' ? '' : posSel.value,
+      width: wInp.value || '',
+      height: hInp.value || '',
+      margin: mInp.value || '',
+      padding: pInp.value || '',
+      'box-sizing': bsSel.value === 'content-box' ? '' : bsSel.value,
+      'z-index': zInp.value || '',
+    }));
+  }
+
+  _showAttrPanel(nodeId, el) {
+    this._hideCtxMenu();
+    const panel = this._makePanel(el);
+    panel.style.minWidth = '260px';
+
+    // We need to look up the node model; for now show computed from the element
+    const cur = getComputedStyle(el);
+
+    const h = document.createElement('h4');
+    h.textContent = 'Attributes';
+    panel.appendChild(h);
+
+    const attrList = document.createElement('div');
+    attrList.style.cssText = 'font:11px monospace; max-height:200px; overflow-y:auto;';
+    for (const attr of el.attributes) {
+      const r = document.createElement('div');
+      r.textContent = `${attr.name} = "${attr.value}"`;
+      attrList.appendChild(r);
+    }
+    if (el.attributes.length === 0) attrList.textContent = '(none)';
+    panel.appendChild(attrList);
+
+    const sh = document.createElement('h4');
+    sh.textContent = 'Styles';
+    panel.appendChild(sh);
+
+    // Get inline styles (node.styles) — stored in style attribute
+    const styleAttr = el.getAttribute('style') || '';
+    const styleList = document.createElement('div');
+    styleList.style.cssText = 'font:11px monospace; max-height:200px; overflow-y:auto;';
+    if (styleAttr) {
+      styleAttr.split(';').filter(Boolean).forEach((d) => {
+        const r = document.createElement('div');
+        r.textContent = d.trim();
+        styleList.appendChild(r);
+      });
+    } else {
+      styleList.textContent = '(none)';
+    }
+    panel.appendChild(styleList);
+
+    // Close button only
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', () => panel.remove());
+    panel.appendChild(closeBtn);
+  }
+
+  /** Create a positioned floating panel near an element. */
+  _makePanel(el) {
+    const panel = document.createElement('div');
+    panel.style.cssText =
+      'position:fixed; background:#fff; color:#000; border:1px solid #999; ' +
+      'border-radius:6px; padding:12px; box-shadow:2px 2px 12px rgba(0,0,0,0.25); ' +
+      'z-index:10001; display:flex; flex-direction:column; gap:6px; min-width:200px;';
+    const rect = el.getBoundingClientRect();
+    panel.style.left = `${Math.min(rect.right + 8, window.innerWidth - 280)}px`;
+    panel.style.top = `${Math.min(rect.top, window.innerHeight - 400)}px`;
+    document.body.appendChild(panel);
+    return panel;
+  }
+
+  /** Add Apply / Cancel buttons and save logic. */
+  _addSaveBtn(panel, nodeId, getStyles) {
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex; gap:4px; margin-top:4px;';
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Apply';
+    saveBtn.addEventListener('click', () => {
+      const styles = getStyles();
+      // Remove empty values so they revert to default
+      for (const k of Object.keys(styles)) {
+        if (!styles[k]) delete styles[k];
+      }
+      this._onSaveStyles(nodeId, styles);
+      panel.remove();
+    });
+    btnRow.appendChild(saveBtn);
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => panel.remove());
+    btnRow.appendChild(cancelBtn);
+    panel.appendChild(btnRow);
   }
 
   // -------------------------------------------------------------------

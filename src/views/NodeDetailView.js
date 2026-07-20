@@ -91,6 +91,13 @@ export class NodeDetailView {
       idR.textContent = `ID: ${node.id}`;
       container.appendChild(idR);
 
+      // Label
+      if (node.label) {
+        const lr = document.createElement('div');
+        lr.textContent = `Label: ${node.label}`;
+        container.appendChild(lr);
+      }
+
       // Attributes
       const ah = document.createElement('h4');
       ah.textContent = 'Attributes';
@@ -144,10 +151,11 @@ export class NodeDetailView {
           const lk = document.createElement('a');
           lk.href = `${base}/node/${child.id}`;
           lk.textContent =
+            child.label ? child.label :
             child.type === 'include' ? '[Include slot]' :
             child.type === 'component'
-              ? `[Component: ${child.component_name}] \u2014 ${child.items.length} children`
-              : `<${child.tagName}> \u2014 ${child.items.length} children`;
+              ? `[Component: ${child.component_name}] — ${child.items.length} children`
+              : `<${child.tagName}> — ${child.items.length} children`;
           li.appendChild(lk);
           cl.appendChild(li);
         });

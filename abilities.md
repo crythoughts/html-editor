@@ -248,7 +248,7 @@ no panels).
 
 Three tool buttons (disabled placeholders for now):
 - **CURSOR** — default, no interaction
-- **INFO** — (stub) navigate to node info
+- **INFO** — select mode (navigate to node info)
 - **SELECT** — select and highlight nodes; click opens node settings, shift-click
   additive; yellow outline; hover shows `<tagname>` label above element
 - **TEXT** — click an element in the preview to edit its text content inline.
@@ -257,6 +257,10 @@ Three tool buttons (disabled placeholders for now):
 - **COLOR** — click an element to open a floating panel. Set **border width**,
   **border color**, and **fill** (background). Pick colours via `<input type="color">`.
   **Apply** saves the styles to the node's `styles` dictionary.
+- **LAYOUT** — click an element to open a panel. Edit position, width, height,
+  margin, padding, box-sizing, and z-index. **Apply** saves to node styles.
+- **ATTR** — click an element to inspect its HTML attributes and inline
+  styles (read-only).
 - **PEN** — click to place points. Lines connect consecutive points.
   Click an existing point (not the last) or double-click the last point to
   finalise the shape as an SVG `<polygon>`. The SVG is inserted into the page.
@@ -267,6 +271,8 @@ Three tool buttons (disabled placeholders for now):
   scrollable preset list. Clicking a preset opens its settings dialog and
   inserts the result into the right-clicked node.
 - Nodes created by presets store `presetName` and display it in the edit view.
+- Nodes have an optional `label` field shown in the tree. When set, the label
+  replaces the default tag-based name. Editable in NodeEditView.
 
 ## 11. Preset system (`src/presets/`, `src/dialogs.js`)
 

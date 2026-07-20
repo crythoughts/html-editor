@@ -74,6 +74,18 @@ export class NodeEditView {
     typeRow.textContent = `Type: ${type}`;
     container.appendChild(typeRow);
 
+    // --- Label ---
+    const labelRow = document.createElement('div');
+    const labelLabel = document.createElement('label');
+    labelLabel.textContent = 'Label: ';
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.value = node.label || '';
+    labelInput.placeholder = 'Auto';
+    labelRow.appendChild(labelLabel);
+    labelRow.appendChild(labelInput);
+    container.appendChild(labelRow);
+
     // --- Preset name (if any) ---
     if (node.presetName) {
       const presetRow = document.createElement('div');
@@ -227,6 +239,7 @@ export class NodeEditView {
     saveBtn.addEventListener('click', () => {
       node.pseudo = pseudoInput.value.trim();
       node.component_name = compInput.value.trim();
+      node.label = labelInput.value.trim();
       node.tagName = tagInput.value.trim() || 'div';
 
       const newVars = {};

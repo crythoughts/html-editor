@@ -292,7 +292,9 @@ export class PageDetailView {
         ).length > 0;
 
       let label;
-      if (node.type === 'include') label = '[Include slot]';
+      if (node.label) {
+        label = node.label;
+      } else if (node.type === 'include') label = '[Include slot]';
       else if (node.type === 'component')
         label = `[Component: ${node.component_name}]`;
       else if (node.type !== 'node') label = `${node.pseudo || node.type}`;
@@ -360,6 +362,12 @@ export class PageDetailView {
       info.textContent = `Type: ${node.type} — ${node.pseudo}`;
     else info.textContent = `Tag: <${node.tagName}>`;
     box.appendChild(info);
+
+    if (node.label) {
+      const lr = document.createElement('div');
+      lr.textContent = `Label: ${node.label}`;
+      box.appendChild(lr);
+    }
 
     const idR = document.createElement('div');
     idR.textContent = `ID: ${node.id}`;

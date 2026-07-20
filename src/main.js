@@ -324,16 +324,18 @@ const toolText = document.getElementById('tool-text');
 const toolTransform = document.getElementById('tool-transform');
 const toolColor = document.getElementById('tool-color');
 const toolPen = document.getElementById('tool-pen');
+const toolLayout = document.getElementById('tool-layout');
+const toolAttr = document.getElementById('tool-attr');
 
 function setToolMode(mode) {
   pageEditor.setMode(mode);
 }
 
-[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen].forEach((btn) => {
+[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen, toolLayout, toolAttr].forEach((btn) => {
   if (btn) btn.disabled = false;
 });
 
-[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen].forEach((btn) => {
+[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen, toolLayout, toolAttr].forEach((btn) => {
   if (btn) btn.addEventListener('click', () => {
     const modes = {
       'tool-cursor': 'cursor',
@@ -343,6 +345,8 @@ function setToolMode(mode) {
       'tool-text': 'text',
       'tool-color': 'color',
       'tool-pen': 'pen',
+      'tool-layout': 'layout',
+      'tool-attr': 'attr',
     };
     setToolMode(modes[btn.id]);
   });

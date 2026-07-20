@@ -11,6 +11,7 @@ import { registerType, getNextNodeId } from '../storage.js';
  * @property {string}  component_name  — referenced Component name (when type='component')
  * @property {Object}  variables       — key/value overrides for Component variables
  * @property {string}  presetName      — name of the preset that created this node (if any)
+ * @property {string}  label           — custom display name; if empty a default is generated
  * @property {boolean} undraggable     — if true, transform mode skips this node and targets its parent
  * @property {Object}  attrs           — key/value map of HTML attributes
  * @property {Object}  styles          — key/value map of CSS properties (kebab-case)
@@ -25,6 +26,7 @@ export class Node extends Serializable {
     this.component_name = '';
     this.variables = {};
     this.presetName = '';
+    this.label = '';
     this.undraggable = false;
     this.tagName = tagName;
     this.attrs = { ...attrs };
