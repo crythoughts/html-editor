@@ -11,6 +11,7 @@ import { registerType, getNextNodeId } from '../storage.js';
  * @property {string}  component_name  — referenced Component name (when type='component')
  * @property {Object}  variables       — key/value overrides for Component variables
  * @property {string}  presetName      — name of the preset that created this node (if any)
+ * @property {boolean} undraggable     — if true, transform mode skips this node and targets its parent
  * @property {Object}  attrs           — key/value map of HTML attributes
  * @property {Object}  styles          — key/value map of CSS properties (kebab-case)
  * @property {Node[]}  items           — child nodes nested inside this node
@@ -24,6 +25,7 @@ export class Node extends Serializable {
     this.component_name = '';
     this.variables = {};
     this.presetName = '';
+    this.undraggable = false;
     this.tagName = tagName;
     this.attrs = { ...attrs };
     this.styles = {};
@@ -158,8 +160,9 @@ export class Node extends Serializable {
     }
 
     // --- Regular node ---
-    const el = document.createElement(this.tagName);
+    const el = createEl(this.tagName);
     el.dataset.nodeId = this.id;
+    if (this.undraggable) el.dataset.undraggable = 'true';
     const hasSelector = !!(this.attrs.class || this.attrs.id);
 
     // In component context with a class/id → collect styles as CSS rules
@@ -201,6 +204,20 @@ export class Node extends Serializable {
 
     return el;
   }
+}
+
+const SVG_TAGS = new Set([
+  'svg', 'circle', 'rect', 'polygon', 'path', 'line', 'polyline', 'ellipse',
+  'text', 'g', 'defs', 'use', 'linearGradient', 'radialGradient', 'stop',
+  'clipPath', 'mask', 'pattern', 'filter', 'feGaussianBlur', 'feOffset',
+  'feMerge', 'feMergeNode', 'feColorMatrix', 'feBlend', 'feComposite',
+]);
+
+function createEl(tag) {
+  if (SVG_TAGS.has(tag)) {
+    return document.createElementNS('http://www.w3.org/2000/svg', tag);
+  }
+  return document.createElement(tag);
 }
 
 registerType('Node', Node);

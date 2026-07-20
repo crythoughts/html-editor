@@ -273,6 +273,8 @@ button next to the Projects button opens a preset picker. Available presets:
 - **Flex block** — flex container with direction, gap, justify-content,
   align-items
 - **Image** — `<img>` with src and alt
+- **Shape** — SVG geometric shape with settings: shape type (circle / square /
+  triangle / star), fill colour, stroke colour, stroke width
 
 Each preset extends `Preset` and implements `getSettingsWindow()` (returns a
 form DOM element) and `getTemplate(parentNode, settings)` (creates child

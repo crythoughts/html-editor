@@ -142,11 +142,13 @@ export class PageDetailView {
       if (this._detailNode && this._detailNode.id === found.id) {
         this._detailNode = null;
         detailPanel.innerHTML = '';
+        container.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeId: '' }, bubbles: true }));
         return;
       }
 
       this._detailNode = found;
       this._renderDetail(detailPanel, found, base);
+      container.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeId: found.id }, bubbles: true }));
     });
 
     container.appendChild(treeAndDetail);

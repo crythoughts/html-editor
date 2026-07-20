@@ -417,7 +417,11 @@ export class PageEditor {
 
   _onDown(e) {
     if (this.mode !== 'transform') return;
-    const target = e.target.closest('[data-node-id]');
+    // Walk up to find the first draggable parent (skip undraggable nodes)
+    let target = e.target.closest('[data-node-id]');
+    while (target && target.dataset.undraggable === 'true') {
+      target = target.parentElement ? target.parentElement.closest('[data-node-id]') : null;
+    }
     if (!target) return;
     const nodeId = target.dataset.nodeId;
     let type = 'move';

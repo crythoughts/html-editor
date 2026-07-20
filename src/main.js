@@ -176,7 +176,7 @@ if (presetAddBtn) {
 
 function updatePreview() {
   const hash = window.location.hash.replace(/^#/, '') || '/';
-  if (hash.startsWith('/render/')) return; // full-screen render, no side preview
+  if (hash.startsWith('/render/')) return;
   const { pid, pg } = parseRoute();
   if (pid == null) { preview.innerHTML = ''; return; }
   const project = getProjectById(pid);
@@ -186,9 +186,54 @@ function updatePreview() {
   preview.innerHTML = '';
   const el = view.render();
   while (el.firstChild) preview.appendChild(el.firstChild);
+
+  // Highlight the active node after rendering
+  _highlightActiveNode();
+}
+
+/** Determine the active node ID and highlight it in the preview. */
+function _highlightActiveNode() {
+  // Parse active node from hash first (takes priority)
+  const m = window.location.hash.match(/\/node\/([^/]+)/);
+  const hashId = m ? m[1].split(',')[0] : null;
+
+  // Fallback to data attribute (set by PageDetailView tree clicks)
+  const attrId = preview.getAttribute('data-active-node-id');
+
+  const activeId = hashId || attrId;
+
+  // Clear the data attribute when navigating via hash to a non-node route
+  if (!hashId && attrId) {
+    preview.removeAttribute('data-active-node-id');
+  }
+
+  if (!activeId) return;
+
+  // Remove previous highlights
+  preview.querySelectorAll('.pe-selected').forEach((el) => {
+    el.classList.remove('pe-selected');
+  });
+
+  // Highlight matching elements (main ID + comma-separated IDs)
+  const ids = activeId.split(',');
+  for (const id of ids) {
+    const target = preview.querySelector(`[data-node-id="${id}"]`);
+    if (target) target.classList.add('pe-selected');
+  }
 }
 
 window.addEventListener('project-saved', updatePreview);
+
+// Listen for node selection from the tree in PageDetailView
+document.addEventListener('node-selected', (e) => {
+  const nodeId = e.detail.nodeId;
+  if (nodeId) {
+    preview.setAttribute('data-active-node-id', nodeId);
+  } else {
+    preview.removeAttribute('data-active-node-id');
+  }
+  _highlightActiveNode();
+});
 
 // ---------------------------------------------------------------------------
 // Page Editor — mode & selection
