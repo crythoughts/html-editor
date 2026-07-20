@@ -38,8 +38,8 @@ export class NodeStylesView {
     }
 
     const base = isComp
-      ? `/project/${this.projectId}/components/${this.componentId}`
-      : `/project/${this.projectId}/${this.pageId}`;
+      ? `#/project/${this.projectId}/components/${this.componentId}`
+      : `#/project/${this.projectId}/${this.pageId}`;
 
     const heading = document.createElement('h3');
     heading.textContent = `Styles — <${node.tagName}>`;

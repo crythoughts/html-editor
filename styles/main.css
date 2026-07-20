@@ -46,3 +46,7 @@ body > #editable-side #editor {
     padding-top: 41px;
     box-sizing: border-box;
 }
+
+body > #editable-side #detail-panel {
+    background: #00000040;
+}
