@@ -4,16 +4,45 @@ body {
     min-height: 100vh;
 }
 
-#app {
+body > #editable-side #toolbar-wrap {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 10px;
+    position: absolute;
+    width: 100%;
+    box-sizing: border-box;
+    background: #483838;
+}
+
+body > #editable-side #toolbar-wrap #toolbar-2 {
+    display: flex;
+    gap: 10px;
+}
+
+body > #editable-side #tools,
+body > #editable-side #toolbar {
+    display: flex;
+    gap: 5px;
+}
+
+body > #editable-side #app {
     background: #a1d2b3;
     border-right: 2px solid #0f18bb63;
     box-sizing: border-box;
-    padding: 0px 15px;
-    width: 325px;
+    padding: 15px 15px;
+    min-width: 400px;
     font-family: sans-serif;
 }
 
-#editor {
+body > #editable-side #editor #preview {
+    width: 100%;
+    padding-right: 10px;
+}
+
+body > #editable-side #editor {
     display: flex;
-    gap: 15px;
+    gap: 10px;
+    min-height: 100vh;
+    padding-top: 41px;
+    box-sizing: border-box;
 }

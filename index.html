@@ -8,11 +8,18 @@
 </head>
 <body>
   <div id="editable-side">
-    <div id="toolbar"></div>
-    <div id="tools">
-        <button id="tool-cursor" disabled>CURSOR</button>
-        <button id="tool-info" disabled>INFO</button>
-        <button id="tool-select" disabled>SELECT</button>
+    <div id="toolbar-wrap">
+        <div id="app-tools">
+            <button id="projects" onclick="location.hash = '/'">Projects</button>
+        </div>
+        <div id="toolbar-2">
+            <div id="toolbar"></div>
+            <div id="tools">
+                <button id="tool-cursor" disabled>CURSOR</button>
+                <button id="tool-info" disabled>INFO</button>
+                <button id="tool-select" disabled>SELECT</button>
+            </div>
+        </div>
     </div>
     <div id="editor">
         <div id="app"></div>
