@@ -114,6 +114,13 @@ const compBtn = document.createElement('button');
     });
     actions.appendChild(headBtn);
 
+    const importHtmlBtn = document.createElement('button');
+    importHtmlBtn.textContent = 'Import from HTML';
+    importHtmlBtn.addEventListener('click', () => {
+      this.router.navigate(`/project/${this.projectId}/import-html`);
+    });
+    actions.appendChild(importHtmlBtn);
+
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Back to list';
     editBtn.addEventListener('click', () => {

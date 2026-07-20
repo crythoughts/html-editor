@@ -21,6 +21,7 @@ import { ProjectCreateView } from './views/ProjectCreateView.js';
 import { ProjectImportView } from './views/ProjectImportView.js';
 import { ProjectDetailView } from './views/ProjectDetailView.js';
 import { ProjectExportJsonView } from './views/ProjectExportJsonView.js';
+import { ProjectImportHtmlView } from './views/ProjectImportHtmlView.js';
 import { PageDetailView } from './views/PageDetailView.js';
 import { PageExportHtmlView } from './views/PageExportHtmlView.js';
 import { NodeDetailView } from './views/NodeDetailView.js';
@@ -365,6 +366,12 @@ router.add('/project/:id', (params) => {
 // (both have 3 segments, so order decides which matches first).
 router.add('/project/:pid/export-json', (params) => {
   const view = new ProjectExportJsonView(router, params.pid);
+  app.innerHTML = '';
+  app.appendChild(view.render());
+});
+
+router.add('/project/:pid/import-html', (params) => {
+  const view = new ProjectImportHtmlView(router, params.pid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });
