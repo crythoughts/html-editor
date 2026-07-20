@@ -157,6 +157,7 @@ export class Node extends Serializable {
 
     // --- Regular node ---
     const el = document.createElement(this.tagName);
+    el.dataset.nodeId = this.id;
     const hasSelector = !!(this.attrs.class || this.attrs.id);
 
     // In component context with a class/id → collect styles as CSS rules

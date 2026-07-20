@@ -247,9 +247,11 @@ no panels).
 ## 10. Tool system
 
 Three tool buttons (disabled placeholders for now):
-- **CURSOR** — default selection / navigation mode
-- **INFO** — click a node to inspect its properties
-- **SELECT** — select and highlight nodes
-
-Only the CURSOR button is active (disabled — no behaviour attached yet).
-The others are stubs for future implementation.
+- **CURSOR** — default, no interaction
+- **INFO** — (stub) navigate to node info
+- **SELECT** — select and highlight nodes; click opens node settings, shift-click
+  additive; yellow outline; hover shows `<tagname>` label above element
+- **TRANSFORM** — drag to transform elements. Default: move element (free if
+  `position: absolute/fixed`, constrained via `translate` otherwise). Ctrl:
+  resize width/height. Shift: rotate. Changes are persisted to the node's
+  `styles` dictionary on mouseup.

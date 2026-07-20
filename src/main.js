@@ -38,11 +38,12 @@ import { PaletteCreateView } from './views/PaletteCreateView.js';
 import { PaletteEditView } from './views/PaletteEditView.js';
 import { HeadView } from './views/HeadView.js';
 import { RenderView } from './views/RenderView.js';
+import { PageEditor } from './PageEditor.js';
 import {
   canUndo, canRedo, undo as histUndo, redo as histRedo,
 } from './history.js';
 import {
-  getProjectById, getProjects, saveProjects, restoreInstance,
+  getProjectById, getProjects, saveProjects, saveProject, restoreInstance,
 } from './storage.js';
 
 const app = document.getElementById('app');
@@ -72,6 +73,63 @@ function updatePreview() {
 }
 
 window.addEventListener('project-saved', updatePreview);
+
+// ---------------------------------------------------------------------------
+// Page Editor — mode & selection
+// ---------------------------------------------------------------------------
+
+const pageEditor = new PageEditor(
+  preview,
+  // onNavigate: open node settings for selected nodes
+  (nodeIds) => {
+    const { pid, pg } = parseRoute();
+    if (pid != null && pg != null) {
+      window.location.hash = `/project/${pid}/${pg}/node/${nodeIds}`;
+    }
+  },
+  // onSaveStyles: persist transform changes to the data model
+  (nodeId, styles) => {
+    const { pid, pg } = parseRoute();
+    if (pid == null || pg == null) return;
+    const project = getProjectById(pid);
+    if (!project) return;
+    const page = project.pages[pg];
+    if (!page) return;
+    const node = page.findNodeById(nodeId);
+    if (!node) return;
+    for (const [prop, val] of Object.entries(styles)) {
+      node.styles[prop] = val;
+    }
+    saveProject(pid, project);
+  },
+);
+
+const toolCursor = document.getElementById('tool-cursor');
+const toolInfo = document.getElementById('tool-info');
+const toolSelect = document.getElementById('tool-select');
+const toolTransform = document.getElementById('tool-transform');
+
+function setToolMode(mode) {
+  pageEditor.setMode(mode);
+  // All buttons stay enabled — user can freely switch between modes.
+}
+
+if (toolCursor) {
+  toolCursor.disabled = false;
+  toolCursor.addEventListener('click', () => setToolMode('cursor'));
+}
+if (toolInfo) {
+  toolInfo.addEventListener('click', () => setToolMode('selection'));
+}
+if (toolSelect) {
+  toolSelect.addEventListener('click', () => setToolMode('selection'));
+}
+if (toolTransform) {
+  toolTransform.addEventListener('click', () => setToolMode('transform'));
+}
+
+// Default to cursor mode
+setToolMode('cursor');
 
 // ---------------------------------------------------------------------------
 // Toolbar
