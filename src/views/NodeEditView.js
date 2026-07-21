@@ -40,8 +40,8 @@ export class NodeEditView {
       back.addEventListener('click', () =>
         this.router.navigate(
           isComp
-            ? `/project/${this.projectId}/components/${this.componentId}/edit`
-            : `/project/${this.projectId}/${this.pageId}`,
+            ? `#/project/${this.projectId}/components/${this.componentId}/edit`
+            : `#/project/${this.projectId}/${this.pageId}`,
         ),
       );
       container.appendChild(back);

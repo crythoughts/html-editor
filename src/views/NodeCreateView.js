@@ -197,8 +197,8 @@ export class NodeCreateView {
       }
 
       const prefix = this.componentId != null
-        ? `/project/${this.projectId}/components/${this.componentId}`
-        : `/project/${this.projectId}/${this.pageId}`;
+        ? `#/project/${this.projectId}/components/${this.componentId}`
+        : `#/project/${this.projectId}/${this.pageId}`;
 
       if (this.parentNodeId) {
         this.router.navigate(`${prefix}/node/${this.parentNodeId}`);
@@ -213,8 +213,8 @@ export class NodeCreateView {
     cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', () => {
       const prefix = this.componentId != null
-        ? `/project/${this.projectId}/components/${this.componentId}`
-        : `/project/${this.projectId}/${this.pageId}`;
+        ? `#/project/${this.projectId}/components/${this.componentId}`
+        : `#/project/${this.projectId}/${this.pageId}`;
 
       if (this.parentNodeId) {
         this.router.navigate(`${prefix}/node/${this.parentNodeId}`);

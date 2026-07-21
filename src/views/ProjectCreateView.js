@@ -64,10 +64,14 @@ export class ProjectCreateView {
         authorInput.value.trim(),
       );
 
-      // Create an initial page with a demo heading node
+      // Create an initial page with a full-page wrapper + demo heading
       const page = new Page(pageInput.value.trim() || 'Home');
+      const wrapper = new Node('div');
+      wrapper.styles['width'] = '100%';
+      wrapper.styles['min-height'] = '100vh';
       const h1 = new Node('h1', { textContent: 'Hello, World!' });
-      page.items.push(h1);
+      wrapper.items.push(h1);
+      page.items.push(wrapper);
       project.addPage(page);
 
       const id = addProject(project);

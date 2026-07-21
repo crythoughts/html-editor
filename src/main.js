@@ -180,8 +180,9 @@ function updatePreview() {
   if (hash.startsWith('/render/')) return;
   const { pid, pg } = parseRoute();
   if (pid == null) { preview.innerHTML = ''; return; }
+  if (pg == null) { preview.innerHTML = ''; return; }  // project page, no page selected
   const project = getProjectById(pid);
-  const pageId = pg ?? 0;
+  const pageId = pg;
   if (!project || !project.pages[pageId]) { preview.innerHTML = ''; return; }
   const view = new RenderView(pid, pageId);
   preview.innerHTML = '';
@@ -255,11 +256,14 @@ const _ctxHandler = (nodeId, presetName) => {
 
 const pageEditor = new PageEditor(
   preview,
-  // onNavigate: open node settings for selected nodes
+  // onNavigate: select node in tree and show inline edit panel
   (nodeIds) => {
     const { pid, pg } = parseRoute();
     if (pid != null && pg != null) {
-      window.location.hash = `/project/${pid}/${pg}/node/${nodeIds}`;
+      // Store selected node for PageDetailView to pick up
+      preview.dataset.selectedNodeId = nodeIds;
+      // Navigate to page route (shows the tree with highlight)
+      window.location.hash = `/project/${pid}/${pg}`;
     }
   },
   // onSaveStyles: persist transform changes to the data model
@@ -317,13 +321,37 @@ window.addEventListener('editor-context', (e) => {
   pageEditor.showCtxMenu(nodeId, menuPresets, x, y);
 });
 
+document.addEventListener('create-node', (e) => {
+  const { projectId, pageId } = e.detail;
+  const view = new NodeCreateView(router, projectId, pageId);
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(view.render());
+  // Add close button at the top
+  wrapper.insertAdjacentHTML('afterbegin', '<button id="cn-close">Close</button>');
+  wrapper.querySelector('#cn-close').addEventListener('click', () => dialog.hide());
+  dialog.show(wrapper);
+});
+
+document.addEventListener('create-child-node', (e) => {
+  const { projectId, pageId, parentNodeId } = e.detail;
+  const view = new NodeCreateView(router, projectId, pageId, parentNodeId);
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(view.render());
+  wrapper.insertAdjacentHTML('afterbegin', '<button id="ccn-close">Close</button>');
+  wrapper.querySelector('#ccn-close').addEventListener('click', () => dialog.hide());
+  dialog.show(wrapper);
+});
+
 const toolCursor = document.getElementById('tool-cursor');
 const toolInfo = document.getElementById('tool-info');
 const toolSelect = document.getElementById('tool-select');
 const toolText = document.getElementById('tool-text');
-const toolTransform = document.getElementById('tool-transform');
+const toolMove = document.getElementById('tool-move');
+const toolScale = document.getElementById('tool-scale');
+const toolRotate = document.getElementById('tool-rotate');
 const toolColor = document.getElementById('tool-color');
 const toolPen = document.getElementById('tool-pen');
+const toolSquare = document.getElementById('tool-square');
 const toolLayout = document.getElementById('tool-layout');
 const toolAttr = document.getElementById('tool-attr');
 
@@ -331,20 +359,23 @@ function setToolMode(mode) {
   pageEditor.setMode(mode);
 }
 
-[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen, toolLayout, toolAttr].forEach((btn) => {
+[toolCursor, toolInfo, toolSelect, toolMove, toolScale, toolRotate, toolText, toolColor, toolPen, toolSquare, toolLayout, toolAttr].forEach((btn) => {
   if (btn) btn.disabled = false;
 });
 
-[toolCursor, toolInfo, toolSelect, toolTransform, toolText, toolColor, toolPen, toolLayout, toolAttr].forEach((btn) => {
+[toolCursor, toolInfo, toolSelect, toolMove, toolScale, toolRotate, toolText, toolColor, toolPen, toolSquare, toolLayout, toolAttr].forEach((btn) => {
   if (btn) btn.addEventListener('click', () => {
     const modes = {
       'tool-cursor': 'cursor',
       'tool-info': 'selection',
       'tool-select': 'selection',
-      'tool-transform': 'transform',
+      'tool-move': 'move',
+      'tool-scale': 'scale',
+      'tool-rotate': 'rotate',
       'tool-text': 'text',
       'tool-color': 'color',
       'tool-pen': 'pen',
+      'tool-square': 'square',
       'tool-layout': 'layout',
       'tool-attr': 'attr',
     };
@@ -403,6 +434,7 @@ function updateToolbar() {
   if (toolbar) toolbar.style.display = isRender ? 'none' : 'flex';
   if (editor) editor.style.display = isRender ? 'none' : 'flex';
   if (renderRoot) renderRoot.style.display = isRender ? 'block' : 'none';
+  if (tools) tools.style.display = !isRender ? 'block' : 'none';
 
   undoBtn.disabled = pid == null || !canUndo(pid);
   redoBtn.disabled = pid == null || !canRedo(pid);
@@ -653,7 +685,7 @@ router.add('/project/:pid/:pageId/node/:nid/edit/classes', (params) => {
 });
 
 router.add('/project/:pid/:pageId/node/:nid', (params) => {
-  const view = new NodeDetailView(router, params.pid, params.pageId, params.nid);
+  const view = new NodeEditView(router, params.pid, params.pageId, params.nid);
   app.innerHTML = '';
   app.appendChild(view.render());
 });

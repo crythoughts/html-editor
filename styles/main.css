@@ -15,7 +15,7 @@ body > #editable-side #toolbar-wrap {
 
     width: 100%;
     background: black;
-    border-bottom: 1px solid black;
+    border-bottom: 1px solid white;
     height: 41px;
     overflow-x: auto;
     scrollbar-width: none;
@@ -102,4 +102,41 @@ body > #tools {
 
 .row-item:hover {
     background: #2b2b34;
+}
+
+.row-item.tree-row-selected {
+    background: #444455;
+}
+
+.node-edit-inline label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.node-edit-inline input,
+.node-edit-inline textarea,
+.node-edit-inline select {
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.attr-row,
+.style-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.attr-row input,
+.style-row input {
+  flex: 1;
+}
+
+.ne-section {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #555;
 }

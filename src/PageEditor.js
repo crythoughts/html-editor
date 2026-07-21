@@ -692,22 +692,37 @@ export class PageEditor {
   }
 
   // -------------------------------------------------------------------
-  // Transform mode
+  // Move / Scale / Rotate / Square modes
   // -------------------------------------------------------------------
 
   _onDown(e) {
-    if (this.mode !== 'transform') return;
-    // Walk up to find the first draggable parent (skip undraggable nodes)
+    const mode = this.mode;
+    if (mode !== 'move' && mode !== 'scale' && mode !== 'rotate' && mode !== 'square') return;
+
     let target = e.target.closest('[data-node-id]');
     while (target && target.dataset.undraggable === 'true') {
       target = target.parentElement ? target.parentElement.closest('[data-node-id]') : null;
     }
     if (!target) return;
+
     const nodeId = target.dataset.nodeId;
-    let type = 'move';
-    if (e.ctrlKey || e.metaKey) type = 'resize';
-    if (e.shiftKey) type = 'rotate';
     const rect = target.getBoundingClientRect();
+    const prect = this.previewEl.getBoundingClientRect();
+
+    if (mode === 'square') {
+      // Draw a new block — measure relative to preview
+      this._squareState = {
+        startX: e.clientX - prect.left,
+        startY: e.clientY - prect.top,
+        nodeId,
+        previewRect: prect,
+      };
+      this._createSquareOverlay(e.clientX - prect.left, e.clientY - prect.top, 0, 0);
+      e.preventDefault();
+      return;
+    }
+
+    const type = mode === 'scale' ? 'resize' : mode === 'rotate' ? 'rotate' : 'move';
     this._transform = {
       nodeId, el: target, type,
       startX: e.clientX, startY: e.clientY, startRect: rect,
@@ -724,54 +739,94 @@ export class PageEditor {
   }
 
   _onMove(e) {
-    const s = this._transform;
-    if (!s) return;
-    const dx = e.clientX - s.startX;
-    const dy = e.clientY - s.startY;
-    const el = s.el;
-    if (s.type === 'move') {
+    // Square
+    if (this._squareState) {
+      const s = this._squareState;
+      const cx = e.clientX - s.previewRect.left;
+      const cy = e.clientY - s.previewRect.top;
+      const w = Math.abs(cx - s.startX);
+      const h = Math.abs(cy - s.startY);
+      const left = Math.min(cx, s.startX);
+      const top = Math.min(cy, s.startY);
+      this._updateSquareOverlay(left, top, w, h);
+      return;
+    }
+
+    const t = this._transform;
+    if (!t) return;
+    const dx = e.clientX - t.startX;
+    const dy = e.clientY - t.startY;
+    const el = t.el;
+
+    if (t.type === 'move') {
       const pos = el.style.position || getComputedStyle(el).position;
       if (pos === 'absolute' || pos === 'fixed') {
         const prect = this.previewEl.getBoundingClientRect();
-        el.style.left = `${(s.startRect.left - prect.left) + dx}px`;
-        el.style.top = `${(s.startRect.top - prect.top) + dy}px`;
+        el.style.left = `${(t.startRect.left - prect.left) + dx}px`;
+        el.style.top = `${(t.startRect.top - prect.top) + dy}px`;
       } else {
         el.style.transform = `translate(${dx}px, ${dy}px)`;
       }
-    } else if (s.type === 'resize') {
-      el.style.width = `${Math.max(20, s.startRect.width + dx)}px`;
-      el.style.height = `${Math.max(20, s.startRect.height + dy)}px`;
-    } else if (s.type === 'rotate') {
+    } else if (t.type === 'resize') {
+      el.style.width = `${Math.max(20, t.startRect.width + dx)}px`;
+      el.style.height = `${Math.max(20, t.startRect.height + dy)}px`;
+    } else if (t.type === 'rotate') {
       el.style.transform = `rotate(${dx * 0.5}deg)`;
     }
   }
 
   _onUp() {
-    const s = this._transform;
-    if (!s) return;
-    s.el.classList.remove('pe-transform');
+    // Square finish
+    if (this._squareState) {
+      this._removeSquareOverlay();
+      const s = this._squareState;
+      const cx = this._lastSquareX ?? s.startX;
+      const cy = this._lastSquareY ?? s.startY;
+      const w = Math.abs(cx - s.startX);
+      const h = Math.abs(cy - s.startY);
+      if (w > 10 && h > 10) {
+        const left = Math.min(cx, s.startX);
+        const top = Math.min(cy, s.startY);
+        this._onSaveStyles(s.nodeId, {
+          position: 'absolute',
+          left: `${left}px`,
+          top: `${top}px`,
+          width: `${w}px`,
+          height: `${h}px`,
+          background: 'rgba(59,130,246,0.2)',
+          border: '1px solid #3b82f6',
+        });
+      }
+      this._squareState = null;
+      return;
+    }
+
+    const t = this._transform;
+    if (!t) return;
+    t.el.classList.remove('pe-transform');
     const changed = {};
-    const style = s.el.style;
-    const pos = s.el.style.position || getComputedStyle(s.el).position;
-    if (s.type === 'move') {
+    const style = t.el.style;
+    const pos = t.el.style.position || getComputedStyle(t.el).position;
+
+    if (t.type === 'move') {
       if (pos === 'absolute' || pos === 'fixed') {
         if (style.left) changed.left = style.left;
         if (style.top) changed.top = style.top;
       } else {
-        if (style.transform && style.transform !== s.startStyles.transform) {
+        if (style.transform && style.transform !== t.startStyles.transform) {
           changed.transform = style.transform;
         }
       }
-    } else if (s.type === 'resize') {
+    } else if (t.type === 'resize') {
       if (style.width) changed.width = style.width;
       if (style.height) changed.height = style.height;
-    } else if (s.type === 'rotate') {
-      if (style.transform && style.transform !== s.startStyles.transform) {
+    } else if (t.type === 'rotate') {
+      if (style.transform && style.transform !== t.startStyles.transform) {
         changed.transform = style.transform;
       }
     }
     if (Object.keys(changed).length > 0) {
-      this._onSaveStyles(s.nodeId, changed);
+      this._onSaveStyles(t.nodeId, changed);
     }
     this._transform = null;
   }
@@ -781,5 +836,32 @@ export class PageEditor {
       this._transform.el.classList.remove('pe-transform');
       this._transform = null;
     }
+    this._removeSquareOverlay();
+    this._squareState = null;
+  }
+
+  // Square overlay
+  _createSquareOverlay(x, y, w, h) {
+    this._removeSquareOverlay();
+    const el = document.createElement('div');
+    el.id = 'pe-square-overlay';
+    el.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:${w}px; height:${h}px; background:rgba(59,130,246,0.15); border:1px dashed #3b82f6; pointer-events:none; z-index:10002;`;
+    document.body.appendChild(el);
+  }
+
+  _updateSquareOverlay(x, y, w, h) {
+    this._lastSquareX = x + w;
+    this._lastSquareY = y + h;
+    const el = document.getElementById('pe-square-overlay');
+    if (!el) return this._createSquareOverlay(x, y, w, h);
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+  }
+
+  _removeSquareOverlay() {
+    const el = document.getElementById('pe-square-overlay');
+    if (el) el.remove();
   }
 }

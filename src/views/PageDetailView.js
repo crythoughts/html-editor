@@ -115,9 +115,14 @@ export class PageDetailView {
     treeHeading.textContent = 'Nodes';
     container.appendChild(treeHeading);
 
-    const createLink = document.createElement('a');
-    createLink.href = `${base}/node/create`;
+    const createLink = document.createElement('button');
     createLink.textContent = '+ Create node';
+    createLink.addEventListener('click', () => {
+      container.dispatchEvent(new CustomEvent('create-node', {
+        detail: { projectId: this.projectId, pageId: this.pageId },
+        bubbles: true,
+      }));
+    });
     container.appendChild(createLink);
 
     // --- Recursive tree + detail panel container ---
@@ -256,10 +261,32 @@ export class PageDetailView {
 
       this._detailNode = found;
       this._renderDetail(detailPanel, found, base);
+      // Highlight this row in the tree
+      treeEl.querySelectorAll('.tree-row-selected').forEach((el) => el.classList.remove('tree-row-selected'));
+      row.classList.add('tree-row-selected');
       container.dispatchEvent(new CustomEvent('node-selected', { detail: { nodeId: found.id }, bubbles: true }));
     });
 
     container.appendChild(treeAndDetail);
+
+    // Check for pending node selection from preview click
+    setTimeout(() => {
+      const previewEl = document.getElementById('preview');
+      if (!previewEl) return;
+      const pendingId = previewEl.dataset.selectedNodeId;
+      if (!pendingId) return;
+      delete previewEl.dataset.selectedNodeId;
+      const found = page.findNodeById(pendingId.split(',')[0]);
+      if (!found) return;
+      this._detailNode = found;
+      this._renderDetail(detailPanel, found, base);
+      // Highlight the matching tree row
+      const treeRow = treeEl.querySelector(`[data-drag-id="${pendingId.split(',')[0]}"]`);
+      if (treeRow) {
+        treeEl.querySelectorAll('.tree-row-selected').forEach((el) => el.classList.remove('tree-row-selected'));
+        treeRow.classList.add('tree-row-selected');
+      }
+    }, 0);
 
     // --- Back ---
     const backBtn = document.createElement('button');
@@ -338,74 +365,166 @@ export class PageDetailView {
     return null;
   }
 
-  /** Render inline detail for a single node. */
+  /** Render inline edit form for a single node — includes tag, attrs, styles, id, classes. */
   _renderDetail(panel, node, base) {
     panel.innerHTML = '';
+    const nid = node.id;
 
-    const box = document.createElement('div');
-    box.style.cssText =
-      'margin-top:8px; padding:8px; border:1px solid #ccc;';
+    const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
-    closeBtn.addEventListener('click', () => {
+    const attrRows = Object.entries(node.attrs)
+      .filter(([k]) => k !== 'textContent')
+      .map(([k, v]) => `<div class="attr-row"><input class="ne-ak" value="${escHtml(k)}" placeholder="key" /><input class="ne-av" value="${escHtml(v)}" placeholder="value" /><button class="ne-rm-attr">−</button></div>`)
+      .join('');
+
+    const styleRows = Object.entries(node.styles)
+      .map(([k, v]) => `<div class="style-row"><input class="ne-sk" value="${escHtml(k)}" placeholder="prop" /><input class="ne-sv" value="${escHtml(v)}" placeholder="val" /><button class="ne-rm-style">−</button></div>`)
+      .join('');
+
+    panel.insertAdjacentHTML('beforeend', `
+      <div class="node-edit-inline" style="margin-top:8px; padding:8px; border:1px solid #ccc;">
+        <button class="close-detail">Close</button>
+
+        <div class="ne-type">Type: ${node.type}</div>
+        <div><label>Label: <input class="ne-label-inp" value="${escHtml(node.label || '')}" placeholder="Auto" /></label></div>
+        <div><label>Tag: <input class="ne-tag-inp" value="${node.tagName}" /></label></div>
+        <div>ID: ${node.id}</div>
+
+        <div class="ne-section"><h4>Attributes</h4>
+          <div class="ne-attrs">${attrRows || '<em>(none)</em>'}</div>
+          <button class="ne-add-attr">+ Attr</button>
+        </div>
+
+        <div class="ne-section"><h4>innerHTML</h4>
+          <textarea class="ne-html-inp" rows="2" style="width:100%;">${escHtml(node.attrs.textContent || '')}</textarea>
+        </div>
+
+        <div class="ne-section"><h4>Styles</h4>
+          <div class="ne-styles">${styleRows || '<em>(none)</em>'}</div>
+          <button class="ne-add-style">+ Style</button>
+        </div>
+
+        <div class="ne-section"><h4>HTML id</h4>
+          <input class="ne-id-inp" value="${escHtml(node.attrs.id || '')}" placeholder="my-id" style="width:100%;" />
+        </div>
+
+        <div class="ne-section"><h4>Classes</h4>
+          <input class="ne-classes-inp" value="${escHtml(node.attrs.class || '')}" placeholder="foo bar baz" style="width:100%;" />
+        </div>
+
+        <div class="ne-section">
+          <button class="ne-create-child">+ Create child node</button>
+        </div>
+
+        <div class="ne-section">
+          <button class="ne-save">Save</button>
+          <button class="ne-delete">Delete</button>
+        </div>
+      </div>
+    `);
+
+    const box = panel.lastElementChild;
+
+    // --- Close ---
+    box.querySelector('.close-detail').addEventListener('click', () => {
       panel.innerHTML = '';
       this._detailNode = null;
+      this._clearTreeSelection();
     });
-    box.appendChild(closeBtn);
 
-    // Type / tag / etc.
-    const info = document.createElement('div');
-    if (node.type === 'include') info.textContent = 'Include slot';
-    else if (node.type === 'component')
-      info.textContent = `Component: ${node.component_name}`;
-    else if (node.type !== 'node')
-      info.textContent = `Type: ${node.type} — ${node.pseudo}`;
-    else info.textContent = `Tag: <${node.tagName}>`;
-    box.appendChild(info);
+    // --- Add/remove attribute rows ---
+    box.querySelector('.ne-add-attr').addEventListener('click', () => {
+      box.querySelector('.ne-attrs').insertAdjacentHTML('beforeend',
+        '<div class="attr-row"><input class="ne-ak" placeholder="key" /><input class="ne-av" placeholder="value" /><button class="ne-rm-attr">−</button></div>');
+      _wireRmAttr(box);
+    });
+    _wireRmAttr(box);
 
-    if (node.label) {
-      const lr = document.createElement('div');
-      lr.textContent = `Label: ${node.label}`;
-      box.appendChild(lr);
-    }
+    // --- Add/remove style rows ---
+    box.querySelector('.ne-add-style').addEventListener('click', () => {
+      box.querySelector('.ne-styles').insertAdjacentHTML('beforeend',
+        '<div class="style-row"><input class="ne-sk" placeholder="prop" /><input class="ne-sv" placeholder="val" /><button class="ne-rm-style">−</button></div>');
+      _wireRmStyle(box);
+    });
+    _wireRmStyle(box);
 
-    const idR = document.createElement('div');
-    idR.textContent = `ID: ${node.id}`;
-    box.appendChild(idR);
+    // --- Create child node (opens dialog) ---
+    box.querySelector('.ne-create-child').addEventListener('click', () => {
+      panel.dispatchEvent(new CustomEvent('create-child-node', {
+        detail: { projectId: this.projectId, pageId: this.pageId, parentNodeId: nid },
+        bubbles: true,
+      }));
+    });
 
-    // Attributes
-    const ah = document.createElement('h4');
-    ah.textContent = 'Attributes';
-    box.appendChild(ah);
-    const aKeys = Object.keys(node.attrs);
-    if (aKeys.length === 0) {
-      const n = document.createElement('p');
-      n.textContent = '(none)';
-      box.appendChild(n);
-    } else {
-      const al = document.createElement('ul');
-      for (const [k, v] of Object.entries(node.attrs)) {
-        const li = document.createElement('li');
-        li.textContent = `${k} = "${v}"`;
-        al.appendChild(li);
+    // --- Save ---
+    box.querySelector('.ne-save').addEventListener('click', () => {
+      node.tagName = box.querySelector('.ne-tag-inp').value.trim() || 'div';
+      node.label = box.querySelector('.ne-label-inp').value.trim();
+
+      const newAttrs = {};
+      box.querySelectorAll('.ne-attrs .attr-row').forEach((row) => {
+        const k = row.querySelector('.ne-ak').value.trim();
+        if (k) newAttrs[k] = row.querySelector('.ne-av').value;
+      });
+      const html = box.querySelector('.ne-html-inp').value;
+      if (html) newAttrs.textContent = html;
+      // id & class come from their dedicated fields
+      const idVal = box.querySelector('.ne-id-inp').value.trim();
+      if (idVal) newAttrs.id = idVal;
+      const clsVal = box.querySelector('.ne-classes-inp').value.trim();
+      if (clsVal) newAttrs.class = clsVal;
+      node.attrs = newAttrs;
+
+      const newStyles = {};
+      box.querySelectorAll('.ne-styles .style-row').forEach((row) => {
+        const k = row.querySelector('.ne-sk').value.trim();
+        if (k) newStyles[k] = row.querySelector('.ne-sv').value;
+      });
+      node.styles = newStyles;
+
+      if (this._project) {
+        this._project.edited_at = Date.now();
+        saveProject(this.projectId, this._project);
       }
-      box.appendChild(al);
+    });
+
+    // --- Delete ---
+    box.querySelector('.ne-delete').addEventListener('click', () => {
+      const p = getProjectById(this.projectId);
+      if (!p) return;
+      const pg = p.pages[this.pageId];
+      if (!pg) return;
+      pg.removeNodeById(nid);
+      p.edited_at = Date.now();
+      saveProject(this.projectId, p);
+      panel.innerHTML = '';
+      this._detailNode = null;
+      this._clearTreeSelection();
+      const container = panel.parentElement;
+      const treeEl = container ? container.querySelector('div:first-child') : null;
+      if (treeEl) {
+        treeEl.innerHTML = '';
+        const fresh = getProjectById(this.projectId);
+        const freshPage = fresh ? fresh.pages[this.pageId] : null;
+        this._renderTree(treeEl, freshPage ? freshPage.items : [], 0, base, null);
+      }
+    });
+
+    // Helpers
+    function _wireRmAttr(b) {
+      b.querySelectorAll('.ne-rm-attr').forEach((btn) => {
+        btn.addEventListener('click', () => btn.closest('.attr-row').remove());
+      });
     }
+    function _wireRmStyle(b) {
+      b.querySelectorAll('.ne-rm-style').forEach((btn) => {
+        btn.addEventListener('click', () => btn.closest('.style-row').remove());
+      });
+    }
+  }
 
-    // Actions
-    const acts = document.createElement('div');
-    const ccl = document.createElement('a');
-    ccl.href = `${base}/node/${node.id}/create`;
-    ccl.textContent = '+ Create child node';
-    acts.appendChild(ccl);
-    acts.appendChild(document.createTextNode(' '));
-    const elink = document.createElement('a');
-    elink.href = `${base}/node/${node.id}/edit`;
-    elink.textContent = 'Edit node';
-    acts.appendChild(elink);
-    box.appendChild(acts);
-
-    panel.appendChild(box);
+  _clearTreeSelection() {
+    const el = document.querySelector('.tree-row-selected');
+    if (el) el.classList.remove('tree-row-selected');
   }
 }

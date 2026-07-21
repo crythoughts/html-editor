@@ -251,7 +251,11 @@ Three tool buttons (disabled placeholders for now):
 - **INFO** — select mode (navigate to node info)
 - **SELECT** — select and highlight nodes; click opens node settings, shift-click
   additive; yellow outline; hover shows `<tagname>` label above element
-- **TEXT** — click an element in the preview to edit its text content inline.
+- **MOVE** — drag to move an element (free if `position: absolute/fixed`,
+  constrained via `translate` otherwise)
+- **SCALE** — drag to resize width/height
+- **ROTATE** — drag to rotate (pixel delta × 0.5 degrees)
+- **TEXT** — click an element to edit its text content inline.
   The element becomes editable (`contentEditable`), text is saved on blur.
   A green outline indicates the element being edited.
 - **COLOR** — click an element to open a floating panel. Set **border width**,
