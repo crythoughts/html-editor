@@ -13,6 +13,7 @@ export class RenderView {
     render() {
         const container = document.createElement('div');
 
+        tools.style.display = "none";
         const project = getProjectById(this.projectId);
 
         if (!project) {

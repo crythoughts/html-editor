@@ -71,6 +71,8 @@ export class ProjectDetailView {
     container.appendChild(pageList);
 
     const actions = document.createElement('div');
+    actions.style.display = "flex";
+    actions.style.flexDirection = "column";
 
     const exportJsonBtn = document.createElement('button');
     exportJsonBtn.textContent = 'Export to JSON';

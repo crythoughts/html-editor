@@ -9,23 +9,11 @@
 <body>
   <div id="editable-side">
     <div id="toolbar-wrap">
-        <div id="app-tools">
-            <button id="projects" onclick="location.hash = '/'">Projects</button>
-            <button id="preset-add">+</button>
+        <div id="app-tools" style="display: flex">
+            <button id="projects" onclick="location.hash = '/'">Main</button>
         </div>
         <div id="toolbar-2">
             <div id="toolbar"></div>
-            <div id="tools" style="max-width:600px; flex-wrap:wrap;">
-                <button id="tool-cursor">CURSOR</button>
-                <button id="tool-info">INFO</button>
-                <button style="display:none;" id="tool-select">SELECT</button>
-                <button id="tool-transform">TRANSFORM</button>
-                <button id="tool-text">TEXT</button>
-                <button id="tool-color">COLOR</button>
-                <button id="tool-pen">PEN</button>
-                <button id="tool-layout">LAYOUT</button>
-                <button id="tool-attr">ATTR</button>
-            </div>
         </div>
     </div>
     <div id="editor">
@@ -33,6 +21,18 @@
         <div id="preview"></div>
     </div>
   </div>
+    <div id="tools">
+        <button id="preset-add">+</button>
+        <button id="tool-cursor">CURSOR</button>
+        <button id="tool-info">INFO</button>
+        <button style="display:none;" id="tool-select">SELECT</button>
+        <button id="tool-transform">TRANSFORM</button>
+        <button id="tool-text">TEXT</button>
+        <button id="tool-color">COLOR</button>
+        <button id="tool-pen">PEN</button>
+        <button id="tool-layout">LAYOUT</button>
+        <button id="tool-attr">ATTR</button>
+    </div>
   <div id="render-root"></div>
 
   <script type="module" src="src/main.js"></script>

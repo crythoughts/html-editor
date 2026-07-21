@@ -12,7 +12,7 @@ export class ProjectListView {
     const container = document.createElement('div');
 
     const heading = document.createElement('h2');
-    heading.textContent = 'Projects';
+    heading.textContent = 'HTML Editor';
     container.appendChild(heading);
 
     const createLink = document.createElement('button');

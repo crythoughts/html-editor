@@ -276,7 +276,8 @@ export class PageDetailView {
   _renderTree(parentEl, items, depth, base, parentId) {
     for (const node of items) {
       const row = document.createElement('div');
-      row.style.paddingLeft = `${depth * 6}px`;
+      row.classList.add("row-item")
+      row.style.paddingLeft = `${(depth + 1) * 10}px`;
       row.style.cursor = 'pointer';
       row.draggable = true;
       row.setAttribute('data-drag-id', node.id);
