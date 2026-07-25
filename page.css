@@ -28,7 +28,119 @@ body {
                 width: 256px;
                 height: 100%;
                 background: #2d3133;
+                overflow-y: auto;
             }
         }
     }
+}
+
+/* ── Page: Project list ──────────────────────────── */
+
+.project-list { padding: 12px; }
+.project-list h2 { color: #ccc; margin: 0 0 10px; font-size: 16px; }
+.project-list .empty { color: #888; font-size: 13px; }
+
+.project-list .btn-new {
+    display: inline-block;
+    margin-bottom: 12px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+}
+
+.project-list .card {
+    background: #3a3d40;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.project-list .card-name { color: #ccc; font-size: 14px; }
+.project-list .card-id   { color: #888; font-size: 11px; margin-left: 6px; }
+.project-list .card-desc { color: #999; font-size: 12px; display: block; }
+.project-list .card-meta { color: #666; font-size: 11px; display: block; margin-top: 2px; }
+.project-list .card-actions { display: flex; gap: 8px; }
+.project-list .card-actions a { font-size: 12px; text-decoration: none; }
+
+/* ── Page: Project view ──────────────────────────── */
+
+.project-view { padding: 12px; }
+.project-view h2 { color: #ccc; margin: 0 0 4px; font-size: 16px; }
+.project-view .back-link { font-size: 12px; text-decoration: none; }
+.project-view .edit-btn {
+    display: inline-block;
+    font-size: 12px;
+    text-decoration: none;
+    padding: 3px 10px;
+    border-radius: 4px;
+}
+.project-view .meta  { color: #999; font-size: 12px; margin: 0 0 14px; }
+.project-view .subtitle { color: #ccc; font-size: 13px; margin: 0 0 8px; }
+.project-view .empty-pages { color: #888; font-size: 12px; }
+.project-view .page-row {
+    background: #3a3d40;
+    border-radius: 4px;
+    padding: 7px 10px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.project-view .page-row-title { color: #ccc; font-size: 13px; }
+.project-view .page-row-id   { color: #666; font-size: 11px; margin-left: 6px; }
+.project-view .page-row-info { color: #888; font-size: 11px; }
+
+.project-view .btn-add-page {
+    margin-top: 8px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px dashed #555;
+    border-radius: 4px;
+    background: transparent;
+    color: #ccc;
+}
+
+/* ── Page: Project edit / create ─────────────────── */
+
+.project-edit { padding: 12px; }
+.project-edit h2 { color: #ccc; margin: 0 0 14px; font-size: 16px; }
+.project-edit .back-link { font-size: 12px; text-decoration: none; }
+.project-edit .field-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+}
+.project-edit .field-wrap label { color: #aaa; font-size: 12px; }
+.project-edit .field-wrap input,
+.project-edit .field-wrap textarea {
+    background: #3a3d40;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    font-size: 13px;
+}
+.project-edit .field-wrap textarea { resize: vertical; }
+.project-edit .form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.project-edit .form-actions .btn-save {
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+}
+.project-edit .form-actions .btn-cancel {
+    padding: 2px 5px;
+    font-size: 13px;
+    text-decoration: none;
+    border-radius: 4px;
+    display: inline-block;
 }
