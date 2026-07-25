@@ -1,4 +1,4 @@
-import { loadProjects } from '../db.js';
+import { loadProjects, fmtTime } from '../db.js';
 
 class ProjectListPage {
     render(container, { router }) {
@@ -20,7 +20,7 @@ class ProjectListPage {
                                     <span class="card-id">#${p.id}</span>
                                     <span class="card-desc">${p.description || 'No description'}</span>
                                     <span class="card-meta">
-                                        ${p.pages.length} page(s) · ${p.author || 'Unknown'} · ${new Date(p.edited_at).toLocaleDateString()}
+                                        ${p.pages.length} page(s) · ${p.author || 'Unknown'} · ${fmtTime(p.edited_at)}
                                     </span>
                                 </div>
                                 <div class="card-actions">

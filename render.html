@@ -1,0 +1,22 @@
+<html>
+<head>
+    <script type="module">
+        import { findProject, findPage } from './app/db.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const projectId = params.get('project_id');
+        const pageId = params.get('page_id');
+
+        const project = findProject(projectId);
+        const page = findPage(project, pageId);
+
+        if (project && page) {
+            document.title = page.title + " - " + project.name;
+            page.render(document.body);
+        } else {
+            document.body.textContent = 'Page not found.';
+        }
+    </script>
+</head>
+<body style="margin:0;padding:0;"></body>
+</html>

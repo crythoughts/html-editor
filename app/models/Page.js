@@ -4,17 +4,23 @@ import Node from './Node.js';
  * Страница внутри проекта.
  *
  * Поля:
- *   title — заголовок страницы
+ *   title — заголовок
  *   id    — автоинкрементный ID в рамках проекта
- *   head  — массив (заголовочные элементы, пока пустой)
- *   items — массив элементов Node (корневые ноды)
+ *   items — массив корневых Node
  */
 class Page {
-    constructor({ title = 'Untitled', id, head = [], items = [] }) {
+    constructor({ title = 'Untitled', id, items = [] }) {
         this.title = title;
         this.id = id;
-        this.head = head;
         this.items = items;
+    }
+
+    /** Отрендерить все корневые ноды в переданный контейнер. */
+    render(container) {
+        container.innerHTML = '';
+        for (const item of this.items) {
+            container.appendChild(item.toDOM());
+        }
     }
 }
 

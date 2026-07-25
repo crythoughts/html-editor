@@ -1,8 +1,9 @@
 import { findProject, createProject, loadProjects, saveProjects } from '../db.js';
 
 class ProjectEditPage {
-    render(container, { params, router }) {
+    render(container, { params, router, modal, onClose }) {
         const isNew = params.id === 'new';
+        const isModal = modal === true;
         const project = isNew ? null : findProject(params.id);
 
         const name = project ? project.name : '';
@@ -11,9 +12,11 @@ class ProjectEditPage {
 
         container.innerHTML = `
             <div class="project-edit">
-                <div style="margin-bottom:10px;">
-                    <a href="#editor/" class="back-link" style="color:#4a9eff;">← Projects</a>
-                </div>
+                ${isModal ? '' : `
+                    <div style="margin-bottom:10px;">
+                        <a href="#editor/" class="back-link" style="color:#4a9eff;">← Projects</a>
+                    </div>
+                `}
 
                 <h2>${isNew ? 'New Project' : 'Edit Project'}</h2>
 
@@ -36,7 +39,9 @@ class ProjectEditPage {
                     <button class="btn-save" id="btn-save" style="background:#4a9eff;color:#fff;">
                         ${isNew ? 'Create' : 'Save'}
                     </button>
-                    <a href="#editor/" class="btn-cancel" style="background:#555;color:#ccc;">Cancel</a>
+                    <button class="btn-cancel" id="btn-cancel" style="background:#555;color:#ccc;border:none;padding:6px 18px;border-radius:4px;cursor:pointer;font-size:13px;">
+                        ${isModal ? 'Close' : 'Cancel'}
+                    </button>
                 </div>
             </div>
         `;
@@ -58,16 +63,32 @@ class ProjectEditPage {
                 });
                 all.push(created);
                 saveProjects(all);
-                router.navigate(`/project/${created.id}`);
+                if (isModal && onClose) {
+                    onClose();
+                } else {
+                    router.navigate(`/project/${created.id}`);
+                }
             } else {
                 const p = all.find(x => x.id === Number(params.id));
                 if (!p) return;
                 p.name = fName;
                 p.description = container.querySelector('#field-description').value.trim();
                 p.author = container.querySelector('#field-author').value.trim();
-                p.edited_at = new Date().toISOString();
+                p.edited_at = Math.floor(Date.now() / 1000);
                 saveProjects(all);
-                router.navigate(`/project/${p.id}`);
+                if (isModal && onClose) {
+                    onClose();
+                } else {
+                    router.navigate(`/project/${p.id}`);
+                }
+            }
+        });
+
+        container.querySelector('#btn-cancel').addEventListener('click', () => {
+            if (isModal && onClose) {
+                onClose();
+            } else {
+                router.navigate('/');
             }
         });
     }

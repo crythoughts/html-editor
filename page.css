@@ -66,6 +66,31 @@ body {
 .project-list .card-actions { display: flex; gap: 8px; }
 .project-list .card-actions a { font-size: 12px; text-decoration: none; }
 
+/* ── Overlay ──────────────────────────────────────── */
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.55);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.overlay-content {
+    background: #2d3133;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 20px;
+    min-width: 320px;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
 /* ── Page: Project view ──────────────────────────── */
 
 .project-view { padding: 12px; }
@@ -91,8 +116,36 @@ body {
     justify-content: space-between;
 }
 .project-view .page-row-title { color: #ccc; font-size: 13px; }
+.project-view .page-row-link {
+    color: inherit;
+    text-decoration: none;
+    display: inline-block;
+}
+.project-view .page-row-link:hover .page-row-title {
+    color: #7ab8ff;
+}
 .project-view .page-row-id   { color: #666; font-size: 11px; margin-left: 6px; }
 .project-view .page-row-info { color: #888; font-size: 11px; }
+
+.project-view .project-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.project-view .page-edit-btn {
+    background: none;
+    border: none;
+    color: #4a9eff;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    margin-left: 6px;
+}
+.project-view .page-edit-btn:hover {
+    color: #7ab8ff;
+}
 
 .project-view .btn-add-page {
     margin-top: 8px;
@@ -103,6 +156,49 @@ body {
     border-radius: 4px;
     background: transparent;
     color: #ccc;
+}
+
+/* ── Page: Page edit ──────────────────────────── */
+
+.page-edit {  }
+.page-edit h2 { color: #ccc; margin: 0 0 12px; font-size: 16px; }
+.page-edit .back-link { font-size: 12px; text-decoration: none; }
+.page-edit .field-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+}
+.page-edit .field-wrap label { color: #aaa; font-size: 12px; }
+.page-edit .field-wrap input,
+.page-edit .field-wrap textarea {
+    background: #3a3d40;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+.page-edit .field-wrap input:disabled {
+    color: #888;
+}
+.page-edit .form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+.page-edit .form-actions .btn-save {
+    padding: 6px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+}
+.page-edit .form-actions .btn-cancel {
+    padding: 6px 18px;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 /* ── Page: Project edit / create ─────────────────── */
@@ -138,9 +234,146 @@ body {
     border-radius: 4px;
 }
 .project-edit .form-actions .btn-cancel {
-    padding: 2px 5px;
+    padding: 6px 18px;
     font-size: 13px;
     text-decoration: none;
     border-radius: 4px;
     display: inline-block;
+}
+
+/* ── Shared: toolbar, node cards ─────────────────── */
+
+.toolbar-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.back-link { font-size: 12px; text-decoration: none; }
+
+.node-card {
+    margin-bottom: 4px;
+}
+.node-card-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #3a3d40;
+    border-radius: 4px;
+    padding: 6px 10px;
+    text-decoration: none;
+    font-size: 12px;
+}
+.node-card-link:hover {
+    background: #44474a;
+}
+.node-tag  { color: #7ec699; font-family: monospace; }
+.node-preview { color: #ccc; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-meta { color: #888; white-space: nowrap; }
+.node-id   { color: #555; font-size: 10px; font-family: monospace; }
+.empty-nodes { color: #888; font-size: 12px; }
+
+.btn-preview {
+    margin-top: 10px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: transparent;
+    color: #ccc;
+}
+.render-area {
+    margin-top: 8px;
+    padding: 8px;
+    background: #1e1e1e;
+    border-radius: 4px;
+    color: #ccc;
+    font-size: 12px;
+}
+
+/* ── Page: Page info ─────────────────────────────── */
+
+.page-info { padding: 12px; }
+.page-info h2 { color: #ccc; margin: 0 0 4px; font-size: 16px; }
+.page-info .meta { color: #999; font-size: 12px; margin: 0 0 12px; }
+.page-info .subtitle { color: #ccc; font-size: 13px; margin: 0 0 8px; }
+
+/* ── Page: Node view ─────────────────────────────── */
+
+.node-view { padding: 12px; }
+.node-view h2 { color: #ccc; margin: 0 0 4px; font-size: 16px; font-family: monospace; }
+.node-view .meta { color: #999; font-size: 12px; margin: 0 0 12px; }
+.node-view .subtitle { color: #ccc; font-size: 13px; margin: 0 0 6px; }
+
+.props-section {
+    margin-bottom: 12px;
+}
+.prop-row {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    padding: 3px 0;
+}
+.prop-label { color: #888; min-width: 80px; }
+.prop-value { color: #ccc; word-break: break-all; }
+
+.attrs-list { font-size: 12px; }
+.attr-row {
+    padding: 2px 0;
+    font-family: monospace;
+    color: #ccc;
+}
+.attr-key { color: #e6db74; }
+.attr-val { color: #a6e22e; }
+
+.node-view .form-actions {
+    display: flex;
+    gap: 8px;
+}
+.node-view .form-actions .btn-save {
+    padding: 6px 18px;
+    font-size: 13px;
+    border-radius: 4px;
+}
+
+/* ── Page: Node edit ─────────────────────────────── */
+
+.node-edit { padding: 12px; }
+.node-edit h2 { color: #ccc; margin: 0 0 4px; font-size: 16px; }
+.node-edit .meta { color: #999; font-size: 12px; margin: 0 0 12px; }
+.node-edit .back-link { font-size: 12px; text-decoration: none; }
+.node-edit .field-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+}
+.node-edit .field-wrap label { color: #aaa; font-size: 12px; }
+.node-edit .field-wrap input,
+.node-edit .field-wrap textarea {
+    background: #3a3d40;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+.node-edit .field-wrap textarea { resize: vertical; }
+.node-edit .form-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.node-edit .form-actions .btn-save {
+    padding: 6px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+}
+.node-edit .btn-danger {
+    padding: 6px 18px;
+    font-size: 13px;
+    border-radius: 4px;
 }

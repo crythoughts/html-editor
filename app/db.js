@@ -31,7 +31,6 @@ function revivePage(raw) {
     return new Page({
         title: raw.title,
         id: raw.id,
-        head: (raw.head || []).map(reviveNode),
         items: (raw.items || []).map(reviveNode),
     });
 }
@@ -95,6 +94,34 @@ export function findProject(id) {
 }
 
 /**
+ * Find a page by ID within a project.
+ * @param {Project} project
+ * @param {number} pageId
+ * @returns {Page | undefined}
+ */
+export function findPage(project, pageId) {
+    return project.pages.find(p => p.id === Number(pageId));
+}
+
+/**
+ * Find a node by its random ID within a page (recursive).
+ * @param {Page} page
+ * @param {string} nodeId
+ * @returns {{ node: Node, parent: Node|null } | undefined}
+ */
+export function findNode(page, nodeId) {
+    function walk(nodes, parent) {
+        for (const n of nodes) {
+            if (n.id === nodeId) return { node: n, parent };
+            const found = walk(n.items, n);
+            if (found) return found;
+        }
+        return undefined;
+    }
+    return walk(page.items, null);
+}
+
+/**
  * Generate a unique page ID within a project.
  * @param {Project} project
  * @returns {number}
@@ -104,21 +131,8 @@ export function nextPageId(project) {
     return max + 1;
 }
 
-/**
- * Generate a unique node ID within a page.
- * Scans the entire nested node tree.
- * @param {Page} page
- * @returns {number}
- */
-export function nextNodeId(page) {
-    let max = 0;
-    function walk(nodes) {
-        for (const n of nodes) {
-            if (n.id > max) max = n.id;
-            walk(n.items);
-        }
-    }
-    walk(page.head);
-    walk(page.items);
-    return max + 1;
+/** Format a unix timestamp for display. */
+export function fmtTime(unixSec) {
+    if (!unixSec) return '—';
+    return new Date(unixSec * 1000).toLocaleString();
 }

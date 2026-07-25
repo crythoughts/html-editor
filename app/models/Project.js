@@ -8,8 +8,8 @@ import Page from './Page.js';
  *   id          — автоинкрементный глобальный ID
  *   description — описание
  *   author      — автор
- *   created_at  — дата создания (ISO)
- *   edited_at   — дата последнего изменения (ISO)
+ *   created_at  — unix-timestamp (сек)
+ *   edited_at   — unix-timestamp (сек)
  *   pages       — массив Page
  */
 class Project {
@@ -18,8 +18,9 @@ class Project {
         this.id = id;
         this.description = description;
         this.author = author;
-        this.created_at = created_at || new Date().toISOString();
-        this.edited_at = edited_at || this.created_at;
+        const now = Math.floor(Date.now() / 1000);
+        this.created_at = created_at || now;
+        this.edited_at = edited_at || now;
         this.pages = pages;
     }
 }
