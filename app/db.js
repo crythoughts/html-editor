@@ -18,10 +18,12 @@ function reviveNode(raw) {
     if (!raw) return raw;
     return new Node({
         id: raw.id,
+        type: raw.type,
         tagName: raw.tagName,
         textContent: raw.textContent,
         items: (raw.items || []).map(reviveNode),
         attrs: { ...(raw.attrs || {}) },
+        styles: { ...(raw.styles || {}) },
     });
 }
 
@@ -107,18 +109,96 @@ export function findPage(project, pageId) {
  * Find a node by its random ID within a page (recursive).
  * @param {Page} page
  * @param {string} nodeId
- * @returns {{ node: Node, parent: Node|null } | undefined}
+ * @returns {{ node: Node, parent: Node|null, index: number } | undefined}
  */
 export function findNode(page, nodeId) {
     function walk(nodes, parent) {
-        for (const n of nodes) {
-            if (n.id === nodeId) return { node: n, parent };
-            const found = walk(n.items, n);
+        for (let i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === nodeId) return { node: nodes[i], parent, index: i };
+            const found = walk(nodes[i].items, nodes[i]);
             if (found) return found;
         }
         return undefined;
     }
     return walk(page.items, null);
+}
+
+/**
+ * Remove a node from the tree by its ID.
+ * @param {Page} page
+ * @param {string} nodeId
+ * @returns {boolean} whether the node was found and removed
+ */
+export function removeNode(page, nodeId) {
+    function walk(nodes) {
+        for (let i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === nodeId) {
+                nodes.splice(i, 1);
+                return true;
+            }
+            if (walk(nodes[i].items)) return true;
+        }
+        return false;
+    }
+    return walk(page.items);
+}
+
+/**
+ * Move a node within the tree.
+ * @param {Page} page
+ * @param {string} sourceId - node to move
+ * @param {string|null} targetId - target node (null = root)
+ * @param {'before'|'after'|'inside'} position
+ * @returns {boolean}
+ */
+export function moveNode(page, sourceId, targetId, position) {
+    // Find and remove source
+    let sourceNode = null;
+    function extract(nodes) {
+        for (let i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === sourceId) {
+                sourceNode = nodes.splice(i, 1)[0];
+                return true;
+            }
+            if (extract(nodes[i].items)) return true;
+        }
+        return false;
+    }
+    if (!extract(page.items) || !sourceNode) return false;
+
+    // Insert at target
+    if (!targetId) {
+        // Append to root
+        if (position === 'before') {
+            page.items.unshift(sourceNode);
+        } else {
+            page.items.push(sourceNode);
+        }
+        return true;
+    }
+
+    function insert(nodes) {
+        for (let i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === targetId) {
+                if (position === 'inside') {
+                    nodes[i].items.push(sourceNode);
+                } else if (position === 'before') {
+                    nodes.splice(i, 0, sourceNode);
+                } else {
+                    nodes.splice(i + 1, 0, sourceNode);
+                }
+                return true;
+            }
+            if (insert(nodes[i].items)) return true;
+        }
+        return false;
+    }
+
+    if (!insert(page.items)) {
+        // Fallback: append to root
+        page.items.push(sourceNode);
+    }
+    return true;
 }
 
 /**

@@ -79,19 +79,9 @@ class ProjectPage {
         this._overlay = container.querySelector('#editor-overlay');
         this._overlayContent = container.querySelector('#overlay-content');
 
-        // Add page button
+        // Add page button → overlay
         container.querySelector('#btn-add-page').addEventListener('click', () => {
-            const all = loadProjects();
-            const p = all.find(x => x.id === project.id);
-            if (!p) return;
-            p.pages.push({
-                title: 'New Page',
-                id: nextPageId(p),
-                items: [],
-            });
-            p.edited_at = Math.floor(Date.now() / 1000);
-            saveProjects(all);
-            router.navigate(`/project/${project.id}`);
+            this._openCreatePage(project.id);
         });
 
         // Project edit button → overlay
@@ -155,6 +145,57 @@ class ProjectPage {
             try { this._pageEditComponent.destroy(); } catch (_) {}
             this._pageEditComponent = null;
         }
+    }
+
+    /* ── create page ──────────────────────────────── */
+
+    _openCreatePage(projectId) {
+        this._closeOverlay();
+        this._overlayContent.innerHTML = '';
+
+        const overlayContent = this._overlayContent;
+
+        overlayContent.innerHTML = `
+            <div class="project-edit">
+                <h2>Create Page</h2>
+                <div class="field-wrap">
+                    <label for="cp-title">Page title</label>
+                    <input id="cp-title" value="" placeholder="My Page">
+                </div>
+                <div class="form-actions">
+                    <button class="btn-save" id="cp-btn-save" style="background:#4a9eff;color:#fff;">
+                        Save
+                    </button>
+                    <button class="btn-cancel" id="cp-btn-close" style="background:#555;color:#ccc;border:none;padding:6px 18px;border-radius:4px;cursor:pointer;font-size:13px;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+
+        overlayContent.querySelector('#cp-btn-save').addEventListener('click', () => {
+            const title = overlayContent.querySelector('#cp-title').value.trim() || 'New Page';
+            const all = loadProjects();
+            const p = all.find(x => x.id === projectId);
+            if (!p) return;
+            const newId = nextPageId(p);
+            p.pages.push({
+                title,
+                id: newId,
+                items: [],
+            });
+            p.edited_at = Math.floor(Date.now() / 1000);
+            saveProjects(all);
+            this._closeOverlay();
+            this._router.navigate(`/project/${projectId}/page/${newId}`);
+        });
+
+        overlayContent.querySelector('#cp-btn-close').addEventListener('click', () => {
+            this._closeOverlay();
+        });
+
+        this._showOverlay();
+        setTimeout(() => overlayContent.querySelector('#cp-title').focus(), 50);
     }
 
     /* ── project edit ─────────────────────────────── */

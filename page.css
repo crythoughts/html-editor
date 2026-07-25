@@ -274,7 +274,6 @@ body {
 .empty-nodes { color: #888; font-size: 12px; }
 
 .btn-preview {
-    margin-top: 10px;
     padding: 4px 12px;
     font-size: 12px;
     cursor: pointer;
@@ -290,6 +289,52 @@ body {
     border-radius: 4px;
     color: #ccc;
     font-size: 12px;
+}
+
+/* ── Tree list (nested) ──────────────────────────── */
+
+.tree-list { }
+.tree-node { margin-bottom: 2px; }
+
+.node-card-link.selected {
+    background: #4a4d50;
+    outline: 1px solid #4a9eff;
+}
+
+/* Drag handle */
+.node-drag-handle {
+    color: #666;
+    cursor: grab;
+    font-size: 14px;
+    user-select: none;
+    line-height: 1;
+}
+
+/* Drag states */
+.node-card-link.dragging {
+    opacity: 0.4;
+}
+.node-card-link.drop-before {
+    outline: 2px solid #4a9eff;
+    outline-offset: -2px;
+    border-top: 2px solid #4a9eff;
+}
+.node-card-link.drop-after {
+    outline: 2px solid #4a9eff;
+    outline-offset: -2px;
+    border-bottom: 2px solid #4a9eff;
+}
+.node-card-link.drop-inside {
+    outline: 2px solid #7ec699;
+    background: #3a5045;
+}
+
+/* ── Node detail panel (embedded below tree) ─────── */
+
+.node-detail-panel {
+    margin-top: 12px;
+    border-top: 1px solid #555;
+    padding-top: 8px;
 }
 
 /* ── Page: Page info ─────────────────────────────── */
@@ -337,7 +382,56 @@ body {
     border-radius: 4px;
 }
 
-/* ── Page: Node edit ─────────────────────────────── */
+/* ── Key-value list (attrs / styles editor) ───────── */
+
+.kv-list { }
+.kv-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 3px;
+}
+.kv-row .kv-key {
+    flex: 1;
+    min-width: 0;
+    background: #3a3d40;
+    color: #e6db74;
+    border: 1px solid #555;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: monospace;
+}
+.kv-row .kv-value {
+    flex: 2;
+    min-width: 0;
+    background: #3a3d40;
+    color: #a6e22e;
+    border: 1px solid #555;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: monospace;
+}
+.kv-remove {
+    background: none;
+    border: none;
+    color: #c04040;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    line-height: 1;
+}
+.kv-add {
+    background: none;
+    border: 1px dashed #555;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    margin-top: 2px;
+}
 
 .node-edit { padding: 12px; }
 .node-edit h2 { color: #ccc; margin: 0 0 4px; font-size: 16px; }
