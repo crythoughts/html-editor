@@ -1,43 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HTML Editor</title>
-  <link rel="stylesheet" href="styles/main.css">
-</head>
-<body>
-  <div id="editable-side">
-    <div id="toolbar-wrap">
-        <div id="app-tools" style="display: flex">
-            <button id="projects" onclick="location.hash = '/'">Main</button>
-        </div>
-        <div id="toolbar-2">
-            <div id="toolbar"></div>
-        </div>
-    </div>
-    <div id="editor">
-        <div id="app"></div>
-        <div id="preview"></div>
-    </div>
-  </div>
-    <div id="tools">
-        <button id="preset-add">+</button>
-        <button id="tool-cursor">CURSOR</button>
-        <button id="tool-info">INFO</button>
-        <button style="display:none;" id="tool-select">SELECT</button>
-        <button id="tool-move">MOVE</button>
-        <button id="tool-scale">SCALE</button>
-        <button id="tool-rotate">ROTATE</button>
-        <button id="tool-text">TEXT</button>
-        <button id="tool-color">COLOR</button>
-        <button id="tool-pen">PEN</button>
-        <button id="tool-square">SQUARE</button>
-        <button id="tool-layout">LAYOUT</button>
-        <button id="tool-attr">ATTR</button>
-    </div>
-  <div id="render-root"></div>
-
-  <script type="module" src="src/main.js"></script>
-</body>
+<html>
+    <head>
+        <script src="https://unpkg.com/vue@2.6.10/dist/vue.js"></script>
+    </head>
+    <body>
+        <div id=”root”></div>
+    </body>
 </html>
